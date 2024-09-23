@@ -1,0 +1,423 @@
+*&---------------------------------------------------------------------*
+*& Report ZTRM_REPORT_1
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ztrm_report_1.
+
+
+INCLUDE Zinclude_declaration_top.
+INCLUDE zinclude_selection_SS.
+
+*Start of Selection.
+START-OF-SELECTION.
+
+* Fetch data from VTBFHA.
+  SELECT bukrs
+         rfha
+         sfgtyp
+         sgsart
+         kontrh
+         rportb
+         wgschft
+         dblfz
+         delfz
+         zuond
+         refer
+         merkm
+         rcomvalcl
+         facilitynr
+         rcntr
+    INTO TABLE it_vtbfha
+    FROM vtbfha
+    WHERE bukrs IN s_bukrs
+      AND rfha  IN s_rfha
+      AND sfgtyp IN s_sfgtyp.
+
+* Fetch data from VTBFHAPO.
+  IF it_vtbfha IS NOT INITIAL.
+    SELECT bukrs
+           rfha
+           rfhazb
+           sfhazba
+           dguel_kp
+           spayrq
+           sbewebe
+           sstornobwg
+           belnr
+           dbuchung
+           dfaell
+           dzterm
+           bzbetr
+           dbervon
+           dberbis
+           atage
+           abastage
+           pkond
+           bbasis
+      INTO TABLE it_vtbfhapo
+      FROM vtbfhapo
+      FOR ALL ENTRIES IN it_vtbfha
+      WHERE bukrs = it_vtbfha-bukrs
+        AND rfha  = it_vtbfha-rfha
+        AND rfhazb IN s_rfhazb
+        AND belnr IN s_belnr
+        AND sbewebe <> 0.
+  ENDIF.
+
+CLEAR ls_final.
+LOOP AT it_vtbfha INTO ls_vtbfha.
+    LOOP AT it_vtbfhapo INTO ls_vtbfhapo WHERE bukrs = ls_vtbfha-bukrs AND rfha = ls_vtbfha-rfha AND sbewebe <> 0.
+        ls_final-bukrs = ls_vtbfha-bukrs.
+        ls_final-rfha = ls_vtbfha-rfha.
+        ls_final-sfgtyp = ls_vtbfha-sfgtyp.
+        ls_final-sgsart = ls_vtbfha-sgsart.
+        ls_final-kontrh = ls_vtbfha-kontrh.
+        ls_final-rportb = ls_vtbfha-rportb.
+        ls_final-wgschft = ls_vtbfha-wgschft.
+        ls_final-dblfz = ls_vtbfha-dblfz.
+        ls_final-delfz = ls_vtbfha-delfz.
+        ls_final-zuond = ls_vtbfha-zuond.
+        ls_final-refer = ls_vtbfha-refer.
+        ls_final-merkm = ls_vtbfha-merkm.
+        ls_final-rcomvalcl = ls_vtbfha-rcomvalcl.
+        ls_final-facilitynr = ls_vtbfha-facilitynr.
+        ls_final-rcntr = ls_vtbfha-rcntr.
+
+        ls_final-rfhazb = ls_vtbfhapo-rfhazb.
+        ls_final-sfhazba = ls_vtbfhapo-sfhazba.
+        ls_final-dguel_kp = ls_vtbfhapo-dguel_kp.
+        ls_final-spayrq = ls_vtbfhapo-spayrq.
+        ls_final-sbewebe = ls_vtbfhapo-sbewebe.
+        ls_final-sstornobwg = ls_vtbfhapo-sstornobwg.
+        ls_final-belnr = ls_vtbfhapo-belnr.
+        ls_final-dbuchung = ls_vtbfhapo-dbuchung.
+        ls_final-dfaell = ls_vtbfhapo-dfaell.
+        ls_final-dzterm = ls_vtbfhapo-dzterm.
+        ls_final-bzbetr = ls_vtbfhapo-bzbetr.
+        ls_final-dbervon = ls_vtbfhapo-dbervon.
+        ls_final-dberbis = ls_vtbfhapo-dberbis.
+        ls_final-atage = ls_vtbfhapo-atage.
+        ls_final-abastage = ls_vtbfhapo-abastage.
+        ls_final-pkond = ls_vtbfhapo-pkond.
+        ls_final-bbasis = ls_vtbfhapo-bbasis.
+
+        APPEND ls_final TO it_final.
+            CLEAR ls_final.
+    ENDLOOP.
+ENDLOOP.
+
+
+
+* Manual field catalog creation
+  CLEAR: it_fcat, ls_fcat.
+
+  " Field: BUKRS (Company Code)
+  ls_fcat-fieldname = 'BUKRS'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '4'.
+  ls_fcat-seltext_m = 'Company Code'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: RFHA (RFHA)
+  ls_fcat-fieldname = 'RFHA'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'RFHA'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: SFGTYP (SFGTYP)
+  ls_fcat-fieldname = 'SFGTYP'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '2'.
+  ls_fcat-seltext_m = 'SFGTYP'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: SGSART (SGSART)
+  ls_fcat-fieldname = 'SGSART'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '4'.
+  ls_fcat-seltext_m = 'SGSART'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: KONTRH (Customer Number)
+  ls_fcat-fieldname = 'KONTRH'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'Customer Number'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: RPORTB (RPORTB)
+  ls_fcat-fieldname = 'RPORTB'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'RPORTB'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: WGSCHFT (WGSCHFT)
+  ls_fcat-fieldname = 'WGSCHFT'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '4'.
+  ls_fcat-seltext_m = 'WGSCHFT'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DBLFZ (DBLFZ)
+  ls_fcat-fieldname = 'DBLFZ'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'DBLFZ'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DELFZ (DELFZ)
+  ls_fcat-fieldname = 'DELFZ'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'DELFZ'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: ZUOND (ZUOND)
+  ls_fcat-fieldname = 'ZUOND'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '20'.
+  ls_fcat-seltext_m = 'ZUOND'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: REFER (Reference)
+  ls_fcat-fieldname = 'REFER'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '12'.
+  ls_fcat-seltext_m = 'Reference'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: MERKM (MERKM)
+  ls_fcat-fieldname = 'MERKM'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '20'.
+  ls_fcat-seltext_m = 'MERKM'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: RCOMVALCL (Value Class)
+  ls_fcat-fieldname = 'RCOMVALCL'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'Value Class'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: FACILITYNR (Facility Number)
+  ls_fcat-fieldname = 'FACILITYNR'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'Facility Number'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: RCNTR (Cost Center)
+  ls_fcat-fieldname = 'RCNTR'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'Cost Center'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: RFHAZB (RFHAZB)
+  ls_fcat-fieldname = 'RFHAZB'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '4'.
+  ls_fcat-seltext_m = 'RFHAZB'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: SFHAZBA (SFHAZBA)
+  ls_fcat-fieldname = 'SFHAZBA'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '4'.
+  ls_fcat-seltext_m = 'SFHAZBA'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DGUEL_KP (DGUEL_KP)
+  ls_fcat-fieldname = 'DGUEL_KP'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'DGUEL_KP'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: SPAYRQ (SPAYRQ)
+  ls_fcat-fieldname = 'SPAYRQ'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '4'.
+  ls_fcat-seltext_m = 'SPAYRQ'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: SBEWEBE (SBEWEBE)
+  ls_fcat-fieldname = 'SBEWEBE'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'SBEWEBE'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: SSTORNOBWG (SSTORNOBWG)
+  ls_fcat-fieldname = 'SSTORNOBWG'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '4'.
+  ls_fcat-seltext_m = 'SSTORNOBWG'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: BELNR (Document Number)
+  ls_fcat-fieldname = 'BELNR'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'Document Number'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DBUCHUNG (Booking Date)
+  ls_fcat-fieldname = 'DBUCHUNG'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'Booking Date'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DFAELL (Due Date)
+  ls_fcat-fieldname = 'DFAELL'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'Due Date'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DZTERM (Term Date)
+  ls_fcat-fieldname = 'DZTERM'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'Term Date'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: BZBETR (Amount)
+  ls_fcat-fieldname = 'BZBETR'.
+  ls_fcat-datatype  = 'CURR'.
+  ls_fcat-outputlen = '15'.
+  ls_fcat-seltext_m = 'Amount'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DBERVON (From Date)
+  ls_fcat-fieldname = 'DBERVON'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'From Date'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: DBERBIS (To Date)
+  ls_fcat-fieldname = 'DBERBIS'.
+  ls_fcat-datatype  = 'DATS'.
+  ls_fcat-outputlen = '8'.
+  ls_fcat-seltext_m = 'To Date'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: ATAGE (Days)
+  ls_fcat-fieldname = 'ATAGE'.
+  ls_fcat-datatype  = 'NUMC'.
+  ls_fcat-outputlen = '3'.
+  ls_fcat-seltext_m = 'Days'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: ABASTAGE (Accounting Days)
+  ls_fcat-fieldname = 'ABASTAGE'.
+  ls_fcat-datatype  = 'NUMC'.
+  ls_fcat-outputlen = '3'.
+  ls_fcat-seltext_m = 'Accounting Days'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: PKOND (Condition)
+  ls_fcat-fieldname = 'PKOND'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '5'.
+  ls_fcat-seltext_m = 'Condition'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+  " Field: BBASIS (Basis)
+  ls_fcat-fieldname = 'BBASIS'.
+  ls_fcat-datatype  = 'CHAR'.
+  ls_fcat-outputlen = '10'.
+  ls_fcat-seltext_m = 'Basis'.
+  APPEND ls_fcat TO it_fcat.
+  CLEAR ls_fcat.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK                 = ' '
+*     I_BYPASSING_BUFFER                = ' '
+*     I_BUFFER_ACTIVE                   = ' '
+*     I_CALLBACK_PROGRAM                = ' '
+*     I_CALLBACK_PF_STATUS_SET          = ' '
+*     I_CALLBACK_USER_COMMAND           = ' '
+*     I_CALLBACK_TOP_OF_PAGE            = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME                  =
+*     I_BACKGROUND_ID                   = ' '
+*     I_GRID_TITLE  =
+*     I_GRID_SETTINGS                   =
+*     IS_LAYOUT     =
+      it_fieldcat   = it_fcat
+*     IT_EXCLUDING  =
+*     IT_SPECIAL_GROUPS                 =
+*     IT_SORT       =
+*     IT_FILTER     =
+*     IS_SEL_HIDE   =
+*     I_DEFAULT     = 'X'
+*     I_SAVE        = ' '
+*     IS_VARIANT    =
+*     IT_EVENTS     =
+*     IT_EVENT_EXIT =
+*     IS_PRINT      =
+*     IS_REPREP_ID  =
+*     I_SCREEN_START_COLUMN             = 0
+*     I_SCREEN_START_LINE               = 0
+*     I_SCREEN_END_COLUMN               = 0
+*     I_SCREEN_END_LINE                 = 0
+*     I_HTML_HEIGHT_TOP                 = 0
+*     I_HTML_HEIGHT_END                 = 0
+*     IT_ALV_GRAPHICS                   =
+*     IT_HYPERLINK  =
+*     IT_ADD_FIELDCAT                   =
+*     IT_EXCEPT_QINFO                   =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+*     O_PREVIOUS_SRAL_HANDLER           =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER           =
+*     ES_EXIT_CAUSED_BY_USER            =
+    TABLES
+      t_outtab      = it_final
+    EXCEPTIONS
+      program_error = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
