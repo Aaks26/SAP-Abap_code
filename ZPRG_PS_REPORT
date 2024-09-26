@@ -1,0 +1,258 @@
+*&---------------------------------------------------------------------*
+*& Report ZPRG_PS_REPORT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zprg_ps_report.
+
+INCLUDE zps_top_declaration.
+INCLUDE zps_DECLARATION_SS.
+
+"select the 1st data form the PROJ  database table.
+SELECT vbukr werks prctr post1 pspnr objnr
+INTO TABLE it_proj
+  FROM proj
+  WHERE vbukr = p_PBUKR AND werks = p_werks AND PRCTR = p_prctr  and pspnr = p_pspnr.
+
+IF it_proj IS NOT INITIAL .
+  " Select data from PRPS table
+  SELECT pspnr posid  objnr pwpos psphi
+    INTO TABLE it_prps
+    FROM prps
+    FOR ALL ENTRIES IN it_proj
+    WHERE  pspnr = it_proj-pspnr OR psphi = it_proj-pspnr.
+ENDIF.
+
+
+IF it_prps IS NOT INITIAL.
+  " Select data from RPSCO table for entries in it_prps
+  SELECT objnr wtp01 wtp02 wtp03 wtp04 wtp05
+    INTO TABLE it_rpsco
+    FROM rpsco
+    FOR ALL ENTRIES IN it_prps
+    WHERE objnr = it_prps-objnr. " Corrected to reference it_prps
+ENDIF.
+*********************************************************************
+" NOW the logic for the PR & PO.
+" WBS -> NETWORK -> ACTIVITY -> PR.
+*********************************************************************
+
+
+* Single loop processing for PRPS, RPSCO, and EKKO/EKPO data
+LOOP AT it_prps INTO wa_prps.
+  CLEAR wa_final.
+
+  " fill data from PROJ table.
+  wa_final-vbukr = wa_proj-vbukr.
+  wa_final-werks = wa_proj-werks.
+  wa_final-prctr = wa_proj-prctr.
+  wa_final-pspnr = wa_proj-pspnr.
+  wa_final-prctr = wa_proj-post1.
+  wa_final-objnr = wa_proj-objnr.
+
+*  " Fill data from PRPS table
+
+  wa_final-pspnr = wa_prps-pspnr.
+  wa_final-posid = wa_prps-posid.
+  wa_final-objnr = wa_prps-objnr.
+  wa_final-pwpos = wa_prps-pwpos.
+  wa_final-psphi = wa_prps-psphi.
+
+  " Read corresponding RPSCO data
+  READ TABLE it_rpsco INTO wa_rpsco WITH KEY objnr = wa_prps-objnr.
+  IF sy-subrc = 0.
+    wa_final-wtp01 = wa_rpsco-wtp01.
+    wa_final-wtp02 = wa_rpsco-wtp02.
+    wa_final-wtp03 = wa_rpsco-wtp03.
+    wa_final-wtp04 = wa_rpsco-wtp04.
+    wa_final-wtp05 = wa_rpsco-wtp05.
+  ENDIF.
+
+  " Read corresponding EKKO/EKPO data
+
+  " Append final structure to final internal table
+  APPEND wa_final TO it_final.
+ENDLOOP.
+
+
+PERFORM zfielcat.
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+  EXPORTING
+*   I_INTERFACE_CHECK                 = ' '
+*   I_BYPASSING_BUFFER                = ' '
+*   I_BUFFER_ACTIVE                   = ' '
+*   I_CALLBACK_PROGRAM                = ' '
+*   I_CALLBACK_PF_STATUS_SET          = ' '
+*   I_CALLBACK_USER_COMMAND           = ' '
+*   I_CALLBACK_TOP_OF_PAGE            = ' '
+*   I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*   I_CALLBACK_HTML_END_OF_LIST       = ' '
+*   I_STRUCTURE_NAME                  = 'ty_final'
+*   I_BACKGROUND_ID                   = ' '
+*   I_GRID_TITLE  =
+*   I_GRID_SETTINGS                   =
+*   IS_LAYOUT     =
+    it_fieldcat   = lt_fieldcat
+*   IT_EXCLUDING  =
+*   IT_SPECIAL_GROUPS                 =
+*   IT_SORT       =
+*   IT_FILTER     =
+*   IS_SEL_HIDE   =
+*   I_DEFAULT     = 'X'
+*   I_SAVE        = ' '
+*   IS_VARIANT    =
+*   IT_EVENTS     =
+*   IT_EVENT_EXIT =
+*   IS_PRINT      =
+*   IS_REPREP_ID  =
+*   I_SCREEN_START_COLUMN             = 0
+*   I_SCREEN_START_LINE               = 0
+*   I_SCREEN_END_COLUMN               = 0
+*   I_SCREEN_END_LINE                 = 0
+*   I_HTML_HEIGHT_TOP                 = 0
+*   I_HTML_HEIGHT_END                 = 0
+*   IT_ALV_GRAPHICS                   =
+*   IT_HYPERLINK  =
+*   IT_ADD_FIELDCAT                   =
+*   IT_EXCEPT_QINFO                   =
+*   IR_SALV_FULLSCREEN_ADAPTER        =
+*   O_PREVIOUS_SRAL_HANDLER           =
+* IMPORTING
+*   E_EXIT_CAUSED_BY_CALLER           =
+*   ES_EXIT_CAUSED_BY_USER            =
+  TABLES
+    t_outtab      = it_final
+  EXCEPTIONS
+    program_error = 1
+    OTHERS        = 2.
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
+
+
+*&---------------------------------------------------------------------*
+*& Form zfielcat
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zfielcat .
+
+  " Field 1: Company Code (vbukr)
+  ls_fieldcat-col_pos  = '1'.             " Column position
+  ls_fieldcat-fieldname = 'vbukr'.        " Field name
+  ls_fieldcat-tabname   = 'lt_final'.     " Internal table name
+  ls_fieldcat-seltext_l = 'Company Code'. " Column header (long text)
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 2: Plant (werks)
+  ls_fieldcat-col_pos  = '2'.
+  ls_fieldcat-fieldname = 'werks'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Plant'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 3: Profit Center (prctr)
+  ls_fieldcat-col_pos  = '3'.
+  ls_fieldcat-fieldname = 'prctr'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Profit Center'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 4: Project (pspnr)
+  ls_fieldcat-col_pos  = '4'.
+  ls_fieldcat-fieldname = 'pspnr'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Project '.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+***********extra*****************
+  " Field 5: current project (psphi)
+  ls_fieldcat-col_pos  = '5'.
+  ls_fieldcat-fieldname = 'psphi'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Current Project'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+*****************prps*****************************
+    " Field 6: WBS Element (pspnr)
+  ls_fieldcat-col_pos  = '6'.
+  ls_fieldcat-fieldname = 'pspnr'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'WBS Element'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+  " WBS element name
+  " Field 7: WBS Element (posid)
+  ls_fieldcat-col_pos  = '7'.
+  ls_fieldcat-fieldname = 'posid'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'WBS NAME'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 7: Annual Value 01 (wtp01)
+  ls_fieldcat-col_pos  = '7'.
+  ls_fieldcat-fieldname = 'wtp01'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Original Annual Val'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 8: Annual Value 02 (wtp02)
+  ls_fieldcat-col_pos  = '8'.
+  ls_fieldcat-fieldname = 'wtp02'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Suppl. Annual Val'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 9: Annual Value 03 (wtp03)
+  ls_fieldcat-col_pos  = '9'.
+  ls_fieldcat-fieldname = 'wtp03'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Distbtd Annual Val'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+
+  " Field 10: Annual Value 03 (wtp04)
+  ls_fieldcat-col_pos  = '10'.
+  ls_fieldcat-fieldname = 'wtp04'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Trnsfer.Annual Val'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 11: Annual Value 03 (wtp05)
+  ls_fieldcat-col_pos  = '11'.
+  ls_fieldcat-fieldname = 'wtp05'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'Return. Annual VAL'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+
+  " Field 12: PURCHASE ORDER NO (ebeln)
+  ls_fieldcat-col_pos  = '12'.
+  ls_fieldcat-fieldname = 'ebeln'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'PURCHASE ORDER NO'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+
+  " Field 13: PO LINE ITEM (ebelp)
+  ls_fieldcat-col_pos  = '13'.
+  ls_fieldcat-fieldname = 'ebelp'.
+  ls_fieldcat-tabname   = 'lt_final'.
+  ls_fieldcat-seltext_l = 'PO LINE ITEM'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+ENDFORM.
