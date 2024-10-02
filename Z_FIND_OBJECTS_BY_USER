@@ -1,0 +1,29 @@
+*&---------------------------------------------------------------------*
+*& Report Z_FIND_OBJECTS_BY_USER
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT Z_FIND_OBJECTS_BY_USER.
+
+DATA: lt_tadir    TYPE TABLE OF tadir,
+      ls_tadir    TYPE tadir,
+      lv_user     TYPE usr02-bname.
+
+PARAMETERS: p_user TYPE usr02-bname OBLIGATORY DEFAULT sy-uname.
+
+* Fetch all objects created by the given user
+SELECT *
+  INTO TABLE lt_tadir
+  FROM tadir
+  WHERE author = p_user.
+
+* Check if any results were found
+IF lt_tadir IS INITIAL.
+  WRITE: / 'No objects found for user:', p_user.
+ELSE.
+  WRITE: / 'Objects created by user:', p_user.
+
+  LOOP AT lt_tadir INTO ls_tadir.
+    WRITE: / 'Object: ', ls_tadir-obj_name, 'Type: ', ls_tadir-object.
+  ENDLOOP.
+ENDIF.
