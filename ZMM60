@@ -1,0 +1,223 @@
+*&---------------------------------------------------------------------*
+*& Report ZMM60
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmm60.
+
+TABLES : mara , marc.
+
+* Define types for material and plant data
+TYPES : BEGIN OF ty_mara,
+          matnr TYPE mara-matnr,
+          laeda TYPE laeda,  " last change
+          mtart TYPE mtart , "  material type
+          matkl TYPE matkl,   " materiL GROUP
+          meins TYPE meins,   " unit
+        END OF ty_mara.
+
+TYPES : BEGIN OF ty_makt,
+          matnr TYPE matnr,
+          MAKTX TYPE MAKTX,   "Material Description
+        END OF ty_makt.
+
+
+TYPES : BEGIN OF ty_marc,
+          matnr TYPE mara-matnr,
+          werks TYPE marc-werks,
+          prctr TYPE marc-prctr,
+        END OF ty_marc.
+
+TYPES : BEGIN OF ty_mbew,
+         MATNR TYPE MATNR,
+         BKLAS TYPE BKLAS,
+  END OF ty_mbew.
+
+TYPES : BEGIN OF ty_final,
+          matnr TYPE mara-matnr,
+          MAKTX TYPE makt-MAKTX, ""Material Description
+          laeda TYPE mara-laeda,  " last change
+          mtart TYPE mara-mtart , "  material type
+          matkl TYPE mara-matkl,   " materiL GROUP
+          meins TYPE mara-meins,   " unit
+          werks TYPE marc-werks,
+          prctr TYPE marc-prctr,
+          bklas TYPE mbew-bklas,  " valuation class
+        END OF ty_final.
+
+* Data declarations
+DATA : it_mara     TYPE TABLE OF ty_mara,
+       it_makt     TYPE TABLE OF ty_makt,
+       it_marc     TYPE TABLE OF ty_marc,
+       it_mbew     TYPE TABLE OF ty_mbew,
+       it_final    TYPE TABLE OF ty_final,
+       lt_fieldcat TYPE slis_t_fieldcat_alv,
+       wa_mara     TYPE ty_mara,
+       wa_makt     TYPE ty_makt,
+       wa_marc     TYPE ty_marc,
+       wa_mbew     TYPE ty_mbew,
+       wa_final    TYPE ty_final,
+       ls_fieldcat TYPE slis_fieldcat_alv.
+
+* Selection screen
+SELECTION-SCREEN BEGIN OF BLOCK b1.
+  SELECT-OPTIONS : s_matnr FOR mara-matnr,
+                   s_werks FOR marc-werks,
+                   s_prctr FOR marc-prctr.
+SELECTION-SCREEN END OF BLOCK b1.
+
+* Fetch data from the MARA table
+
+SELECT matnr laeda mtart matkl meins
+  FROM mara
+  INTO TABLE it_mara
+  WHERE matnr IN s_matnr.
+
+  IF it_mara is NOT INITIAL.
+SELECT matnr MAKTX
+  from makt
+  INTO TABLE it_makt
+  FOR ALL ENTRIES IN it_mara
+  where matnr = it_mara-matnr.
+  ENDIF.
+
+* Check if any materials were fetched
+IF it_mara IS NOT INITIAL.
+* Fetch corresponding data from MARC using FOR ALL ENTRIES
+  SELECT matnr werks prctr
+    FROM marc
+    INTO TABLE it_marc
+    FOR ALL ENTRIES IN it_mara
+    WHERE matnr = it_mara-matnr
+      AND werks IN s_werks
+      AND prctr IN s_prctr.
+
+IF it_mara is NOT INITIAL.
+SELECT matnr bklas
+  FROM mbew
+  INTO TABLE it_mbew
+  FOR ALL ENTRIES IN it_mara
+  where matnr = it_mara-matnr.
+ENDIF.
+
+* If data is found in MARC, map it to the final internal table
+**************************************************************************************************************
+  IF it_marc IS NOT INITIAL.
+    LOOP AT it_mara INTO wa_mara.
+      CLEAR wa_final.
+      wa_final-matnr = wa_mara-matnr.
+      wa_final-laeda = wa_mara-laeda.
+      wa_final-mtart = wa_mara-mtart.
+      wa_final-matkl  = wa_mara-matkl.
+      wa_final-meins  = wa_mara-meins.
+
+ " read table Makt for the material description
+      READ TABLE it_makt INTO wa_makt with KEY matnr = wa_mara-matnr.
+      wa_final-MAKTX = wa_makt-MAKTX.
+
+" read table mbew
+READ TABLE it_mbew INTO wa_mbew WITH  KEY matnr = wa_mara-matnr.
+wa_final-bklas = wa_mbew-bklas.
+* Read the corresponding MARC entry
+        LOOP AT it_marc into wa_marc where matnr = wa_mara-matnr.
+        wa_final-werks = wa_marc-werks.
+        wa_final-prctr = wa_marc-prctr.
+      APPEND wa_final to it_final.
+        ENDLOOP.
+    ENDLOOP.
+  ENDIF.
+
+ENDIF.
+
+* Build the field catalog for ALV grid display
+CLEAR ls_fieldcat.
+
+" Field 1: Material
+ls_fieldcat-col_pos  = 1.
+ls_fieldcat-fieldname = 'MATNR'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Material'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+" Field 1: Material description
+ls_fieldcat-col_pos  = 2.
+ls_fieldcat-fieldname = 'MAKTX'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Material Description'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+" Field 3: Plant (werks)
+ls_fieldcat-col_pos  = 3.
+ls_fieldcat-fieldname = 'WERKS'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Plant'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+" Field 4: Profit Center (prctr)
+ls_fieldcat-col_pos  = 4.
+ls_fieldcat-fieldname = 'PRCTR'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Profit Center'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+
+" Field 5: last chnage (laeda)
+ls_fieldcat-col_pos  = 5.
+ls_fieldcat-fieldname = 'laeda'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Last Change'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+" Field 6: material types
+ls_fieldcat-col_pos  = 6.
+ls_fieldcat-fieldname = 'mtart'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Material Type'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+" Field 7: Material Group
+ls_fieldcat-col_pos  = 7.
+ls_fieldcat-fieldname = 'matkl'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Material Group'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+" Field 8: Base Unit Of MEasure
+ls_fieldcat-col_pos  = 8.
+ls_fieldcat-fieldname = 'meins'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Base Unit Of Measure'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+" Field 9: Valuation Class
+ls_fieldcat-col_pos  = 9.
+ls_fieldcat-fieldname = 'bklas'.
+ls_fieldcat-tabname   = 'IT_FINAL'.
+ls_fieldcat-seltext_l = 'Valuation Class'.
+APPEND ls_fieldcat TO lt_fieldcat.
+CLEAR ls_fieldcat.
+
+
+
+
+* Call ALV grid display
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+  EXPORTING
+    it_fieldcat   = lt_fieldcat
+  TABLES
+    t_outtab      = it_final
+  EXCEPTIONS
+    program_error = 1
+    OTHERS        = 2.
+
+IF sy-subrc <> 0.
+  MESSAGE 'Error in ALV display' TYPE 'E'.
+ENDIF.
