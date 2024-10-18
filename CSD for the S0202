@@ -1,0 +1,35 @@
+@AbapCatalog.sqlViewName: 'ZSQLS0202'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'FICO SAP CHEQUE STOCK'
+@Metadata.ignorePropagatedAnnotations: true
+define view Z_Cheque_Stock
+  as select from pcec as P
+  left outer join t001 as T
+    on T.bukrs = P.zbukr
+  left outer join adrc as A
+    on T.adrnr = A.addrnumber
+  left outer join payr as V
+    on V.zbukr = P.zbukr
+    and V.hbkid = P.hbkid
+    and V.hktid = P.hktid
+    left outer join bnka as B
+    on B.banks =  V.zland 
+{
+  P.zbukr as CompanyCode,
+  T.butxt as company_name,
+  P.hbkid as HouseBank,
+  P.hktid as AccountId,
+  B.bankl as BANKkey,
+  B.banka as BankName ,
+  B.bankl as BankAccountNo, 
+  --B.BANKT as BankType, 
+  P.stapi as Remarks,
+  P.checf as FromChequeNo,
+  P.chect as ToChequeNo,
+  P.checl as LastUsedNo,
+  P.checf as checkinstock,
+  V.voidr as NOvoidCHEQUE,
+  P.checktype as CHECKtype  
+}
