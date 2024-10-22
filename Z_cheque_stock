@@ -1,0 +1,352 @@
+*&---------------------------------------------------------------------*
+*& Report Z_CHEQUE_STOCK
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT z_cheque_stock.
+TABLES :pcec,t001,adrc,payr,bnka, t012k.
+
+*******************SELECTION_SCREEN***********************************
+SELECT-OPTIONS :s_bukr FOR pcec-zbukr OBLIGATORY,
+                s_hbnk FOR t012k-hbkid OBLIGATORY,
+                s_bank FOR  bnka-bankl OBLIGATORY.
+***********************************************************************
+************DATA DEC****************
+TYPES : BEGIN OF ty_pcec, "ZBUKR HBKID HKTID STAPI STAPL CHECF CHECT CHECL
+          zbukr     TYPE dzbukr, " company code
+          hbkid     TYPE hbkid, "housebake
+          hktid     TYPE hktid , "AccountId,
+          stapi     TYPE stapi , "Remarks,
+          stapl     TYPE stapl , " LOT number,
+          checf     TYPE checf , "FromChequeNo,
+          chect     TYPE chect, "ToChequeNo,
+          checl     TYPE checl , "LastUsedNo,
+          lv_checf1 TYPE i,  " cheque in stock
+        END OF ty_pcec.
+
+TYPES : BEGIN OF ty_t001,
+          land1 TYPE land1, "Country/Region Key
+          bukrs TYPE bukrs, " company code
+          butxt TYPE butxt , " company name
+          adrnr TYPE adrnr, "Address
+        END OF ty_t001.
+
+TYPES : BEGIN OF ty_adrc,
+          addrnumber TYPE ad_addrnum , " address number
+        END OF ty_adrc.
+
+TYPES : BEGIN OF ty_bnka,
+          banks TYPE banks, " Bank country key.
+          bankl TYPE bankk, " BANKkey,
+          banka TYPE banka, "BankName ,
+          bnklz TYPE bankl, " BankAccountNo,
+        END OF ty_bnka.
+
+TYPES : BEGIN OF ty_payr,
+          zbukr TYPE dzbukr, " c code
+          voidr TYPE voidr , "NOvoidCHEQUE,
+        END OF ty_payr.
+
+TYPES : BEGIN OF ty_T012T,
+          bukrs TYPE bukrs, " COMPANY
+          text1 TYPE fibl_txt50,     "current account.
+        END OF ty_t012t.
+
+TYPES : BEGIN OF ty_t012k,
+          bukrs TYPE bukrs, " company
+          hbkid TYPE hbkid, " house bank
+          hktid TYPE hktid, "bank AC ID
+          bankn TYPE bankn, " bank AC number]
+        END OF ty_t012k.
+
+
+
+TYPES : BEGIN OF ty_final,
+          zbukr     TYPE pcec-zbukr, " company code
+          butxt     TYPE t001-butxt , " company name
+          hbkid     TYPE t012k-hbkid, "housebake
+          hktid     TYPE t012k-hktid , "AccountId,
+          bankl     TYPE bnka-bankl, "BANKkey
+          banka     TYPE bnka-banka, "BankName ,
+          bankn     TYPE t012k-bankn, "" BankAccountNo,
+          text1     TYPE t012t-text1,     "current account.
+          stapi     TYPE pcec-stapi , "Remarks,
+          stapl     TYPE  pcec-stapl , " LOT number,
+          checf     TYPE pcec-checf , "FromChequeNo,
+          chect     TYPE pcec-chect, "ToChequeNo,
+          checl     TYPE pcec-checl , "LastUsedNo,
+          lv_checf1 TYPE i, "checkinstock,
+          check     TYPE pcec-checf, "CHECKtype
+          voidr     TYPE payr-voidr , "NOvoidCHEQUE,
+
+        END OF ty_final.
+
+
+" internal table and work area declaration.
+DATA : it_pcec     TYPE TABLE OF ty_pcec,
+       it_t001     TYPE TABLE OF ty_t001,
+       it_adrc     TYPE TABLE OF ty_adrc,
+       it_bnka     TYPE TABLE OF ty_bnka,
+       it_payr     TYPE TABLE OF ty_payr,
+       it_t012t    TYPE TABLE OF ty_t012t,
+       it_t012k    TYPE TABLE OF ty_t012k,
+       it_final    TYPE TABLE OF ty_final,
+       lt_fieldcat TYPE slis_t_fieldcat_alv,
+       wa_pcec     TYPE ty_pcec,
+       wa_t001     TYPE ty_t001,
+       wa_adrc     TYPE ty_adrc,
+       wa_bnka     TYPE ty_bnka,
+       wa_payr     TYPE ty_payr,
+       wa_t012t    TYPE ty_t012t,
+       wa_t012k    TYPE ty_t012k,
+       ls_fieldcat TYPE slis_fieldcat_alv,
+       wa_final    TYPE ty_final.
+**********************************************************************************
+START-OF-SELECTION.
+
+  " First Select from pcec table
+  SELECT zbukr hbkid hktid stapi stapl checf chect checl
+    FROM pcec
+    INTO TABLE it_pcec
+    WHERE zbukr IN s_bukr.
+
+  " Ensure it_pcec is filled
+  IF it_pcec IS NOT INITIAL.
+
+    " Second Select from t001 table using FOR ALL ENTRIES in it_pcec
+    SELECT land1 bukrs butxt adrnr
+      FROM t001
+      INTO TABLE it_t001
+      FOR ALL ENTRIES IN it_pcec
+      WHERE bukrs = it_pcec-zbukr.
+
+    " Check if it_t001 is filled
+    IF it_t001 IS NOT INITIAL.
+
+      " Third Select from bnka table using FOR ALL ENTRIES in it_t001
+      SELECT banks bankl banka bnklz
+        FROM bnka
+        INTO TABLE it_bnka
+        FOR ALL ENTRIES IN it_t001
+        WHERE banks = it_t001-land1 AND bankl IN s_bank.
+
+    ENDIF.
+
+    " Fourth Select from t012k table using FOR ALL ENTRIES in it_pcec
+    SELECT bukrs hbkid hktid bankn
+      FROM t012k
+      INTO TABLE it_t012k
+      FOR ALL ENTRIES IN it_pcec
+      WHERE bukrs = it_pcec-zbukr AND hbkid IN s_hbnk.
+
+  ENDIF.
+
+  "currenet account
+  IF it_t012k IS NOT INITIAL.
+    SELECT bukrs text1
+      FROM t012t
+      INTO TABLE it_t012t
+      FOR ALL ENTRIES IN it_t012k
+      WHERE bukrs  = it_t012k-bukrs .
+  ENDIF.
+
+end-of-SELECTION.
+
+**********************************************************************
+  LOOP AT it_pcec INTO wa_pcec.
+    CLEAR wa_final.
+    wa_final-zbukr = wa_pcec-zbukr.
+    wa_final-hbkid = wa_pcec-hbkid.
+    wa_final-hktid = wa_pcec-hktid .
+    wa_final-stapi = wa_pcec-stapi.
+    wa_final-stapl = wa_pcec-stapl. " LOT number,
+    wa_final-checf = wa_pcec-checf.
+    wa_final-chect = wa_pcec-chect.
+    wa_final-checl = wa_pcec-checl.
+
+    READ TABLE it_t001 INTO wa_t001 WITH KEY bukrs = wa_pcec-zbukr.
+    wa_final-butxt = wa_t001-butxt.
+
+    READ TABLE it_t012k INTO wa_t012k WITH KEY bukrs = wa_pcec-zbukr.
+    wa_final-hbkid = wa_t012k-hbkid.
+    wa_final-hktid = wa_t012k-hktid.
+    wa_final-bankn = wa_t012k-bankn.
+
+    READ TABLE it_t012t INTO wa_t012t WITH  KEY bukrs = wa_t012k-bukrs.
+    wa_final-text1 = wa_t012t-text1.
+
+    READ TABLE it_bnka INTO wa_bnka WITH KEY banks = wa_t001-land1.
+*    wa_final-banks = wa_bnka-banks.
+    wa_final-bankl = wa_bnka-bankl.
+    wa_final-banka = wa_bnka-banka.
+    APPEND wa_final TO it_final.
+  ENDLOOP.
+
+LOOP AT it_final INTO wa_final.
+  " Logic for lv_checf1 calculation
+    IF wa_final-checl is INITIAL.
+       wa_final-lv_checf1  = wa_final-chect - wa_final-checf  . " From cheque to cheque
+    ELSE.
+      wa_final-lv_checf1 = wa_final-checl - wa_final-chect. " From cheque to last use
+    ENDIF.
+
+  " Modify the it_final table with updated wa_final
+  MODIFY it_final FROM wa_final.
+ENDLOOP.
+
+******************************************************************************
+  CLEAR ls_fieldcat.
+
+  " Field 1: Company Code
+  ls_fieldcat-col_pos  = 1.
+  ls_fieldcat-fieldname = 'zbukr'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Company Code'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 2: Company Name
+  ls_fieldcat-col_pos  = 2.
+  ls_fieldcat-fieldname = 'butxt'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Company Name'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 3: House Bank
+  ls_fieldcat-col_pos  = 3.
+  ls_fieldcat-fieldname = 'hbkid'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'House Bank'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 4: Account ID
+  ls_fieldcat-col_pos  = 4.
+  ls_fieldcat-fieldname = 'hktid'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Account ID'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 5: Bank Key
+  ls_fieldcat-col_pos  = 5.
+  ls_fieldcat-fieldname = 'bankl'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Bank Key'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 6: Bank Name
+  ls_fieldcat-col_pos  = 6.
+  ls_fieldcat-fieldname = 'banka'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Bank Name'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 7: Bank Account Number
+  ls_fieldcat-col_pos  = 7.
+  ls_fieldcat-fieldname = 'bankn'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Bank Account No'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 8: Bank Account Type
+  ls_fieldcat-col_pos  = 8.
+  ls_fieldcat-fieldname = 'text1'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Bank Account Type'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 9: Remarks
+  ls_fieldcat-col_pos  = 9.
+  ls_fieldcat-fieldname = 'stapi'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Remarks'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 10: Line No
+  ls_fieldcat-col_pos  = 10.
+  ls_fieldcat-fieldname = 'stapl '.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Line No'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 11: From Cheque No
+  ls_fieldcat-col_pos  = 11.
+  ls_fieldcat-fieldname = 'checf'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'From Cheque No'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 12: To Cheque No
+  ls_fieldcat-col_pos  = 12.
+  ls_fieldcat-fieldname = 'chect'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'To Cheque No'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 13: Last Used No
+  ls_fieldcat-col_pos  = 13.
+  ls_fieldcat-fieldname = 'checl'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Last Used No'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  "Field 14: Cheque in Stock
+  ls_fieldcat-col_pos  = 14.
+  ls_fieldcat-fieldname = 'lv_checf1'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'Cheque In Stock'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
+  " Field 15: No Void Cheque
+  ls_fieldcat-col_pos  = 15.
+  ls_fieldcat-fieldname = 'voidr'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'No Void Cheque'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+*
+*  " Field 16: Cheque Type
+*  ls_fieldcat-col_pos  = 16.
+*  ls_fieldcat-fieldname = 'checf'.
+*  ls_fieldcat-tabname   = 'IT_FINAL'.
+*  ls_fieldcat-seltext_l = 'Cheque Type'.
+*  APPEND ls_fieldcat TO lt_fieldcat.
+*  CLEAR ls_fieldcat.
+*
+*   "Field 17: Bank Status
+*  ls_fieldcat-col_pos  = 17.
+*  ls_fieldcat-fieldname = 'BANKSTATUS'.
+*  ls_fieldcat-tabname   = 'IT_FINAL'.
+*  ls_fieldcat-seltext_l = 'Bank Status'.
+*  APPEND ls_fieldcat TO lt_fieldcat.
+*  CLEAR ls_fieldcat.
+
+  " Now lt_fieldcat contains the field catalog for the displayed fields.
+
+
+
+* Call ALV grid display
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      it_fieldcat   = lt_fieldcat
+    TABLES
+      t_outtab      = it_final
+    EXCEPTIONS
+      program_error = 1
+      OTHERS        = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE 'Error in ALV display' TYPE 'E'.
+  ENDIF.
