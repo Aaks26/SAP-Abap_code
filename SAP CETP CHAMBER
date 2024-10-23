@@ -1,0 +1,240 @@
+*&---------------------------------------------------------------------*
+*& Report ZS0197
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zs0197.
+
+************SELECTION SCREEN********************************************
+PARAMETERS : P_VKORG  TYPE knvv-VKORG OBLIGATORY.
+
+************************************************************************
+*--- Declaration of individual table types (structures) ---
+TYPES:
+  BEGIN OF ty_knvv,
+    vkorg TYPE vkorg,   " Plant code
+    kunnr TYPE kunnr,   " Customer code
+    vsort TYPE vsort,   " Item proposal number
+  END OF ty_knvv,
+
+  BEGIN OF ty_t001w,
+    werks TYPE werks,
+    name1 TYPE name1,    " Plant name
+  END OF ty_t001w,
+
+  BEGIN OF ty_vbap,
+    matnr      TYPE matnr,     " Material Number
+    arktx      TYPE arktx,     " Material name
+    zmeng      TYPE DZMENG,     " Quantity
+  END OF ty_vbap,
+
+  BEGIN OF ty_konp,
+    knumh TYPE knumh,          " Condition Record Number
+    kbetr TYPE kbetr,          " Condition Amount
+  END OF ty_konp.
+
+*--- Declaration of the final structure with all fields ---
+TYPES:
+  BEGIN OF ty_final,
+    plant_code      TYPE vkorg,      " Plant code
+    plant_name      TYPE name1,      " Plant name
+    customer_code   TYPE kunnr,      " Customer code
+    customer_name   TYPE name1,      " Customer name
+    item_proposal_no TYPE vsort,     " Item proposal number
+    material_code   TYPE matnr,      " Material Number
+    material_name   TYPE arktx,      " Material name
+    qty             TYPE DZMENG,      " Quantity
+    process_rate    TYPE kbetr,      " Condition amount
+  END OF ty_final.
+
+*--- Declaration of internal tables and work areas ---
+DATA:
+  it_final  TYPE TABLE OF ty_final,  " Internal table for final structure
+  wa_final  TYPE ty_final.           " Work area for final structure
+
+*--- Declare variables for CDS replacements ---
+DATA: lt_result TYPE TABLE OF ty_final,   " Internal table for final result
+      ls_result TYPE ty_final.            " Work area for result.
+
+DATA: lt_fcat TYPE slis_t_fieldcat_alv,
+      ls_fcat TYPE slis_fieldcat_alv.
+START-OF-SELECTION.
+*--- Selecting data from KNVV and related tables ---
+SELECT vv~vkorg          AS plant_code,
+       cnam~name1        AS plant_name,
+       vv~kunnr          AS customer_code,
+       kn~name1          AS customer_name,
+       vv~vsort          AS item_proposal_no,
+       vp~matnr          AS material_code,
+       vp~arktx          AS material_name,
+       vp~zmeng          AS qty,
+       COALESCE( kpa~kbetr, kp~kbetr, 0 ) AS process_rate
+*  INTO TABLE @it_final
+  FROM knvv AS vv
+  INNER JOIN vbap AS vp ON vp~vbeln = vv~vsort
+  INNER JOIN t001w AS cnam ON cnam~werks = vv~vkorg
+  INNER JOIN kna1 AS kn ON kn~kunnr = vv~kunnr
+  LEFT OUTER JOIN a520 AS a52 ON a52~vkorg = vv~vkorg
+                            AND a52~kunnr = vv~kunnr
+                            AND a52~matnr = vp~matnr
+                            AND a52~kschl = 'ZPSV'
+                            AND a52~datbi >= @sy-datum
+                            AND a52~vkorg = '5101'
+  LEFT OUTER JOIN a766 AS a66 ON a66~vkorg = vv~vkorg
+                            AND a66~kunnr = vv~kunnr
+                            AND a66~matnr = vp~matnr
+                            AND a66~kschl = 'ZPSV'
+                            AND a66~datbi >= @sy-datum
+  LEFT OUTER JOIN a777 AS a77 ON a77~vkorg = vv~vkorg
+                            AND a77~matnr = vp~matnr
+                            AND a77~kschl = 'ZPSV'
+                            AND a77~datbi >= @sy-datum
+  LEFT OUTER JOIN konp AS kp ON kp~knumh = COALESCE( a66~knumh, a77~knumh )
+                            AND kp~kschl = 'ZPSV'
+  LEFT OUTER JOIN konp AS kpa ON kpa~knumh = a52~knumh
+                            AND kpa~kschl = 'ZPSV'
+
+  WHERE vv~vkorg = @P_VKORG
+  INTO TABLE @it_final.
+
+end-of-SELECTION.
+
+* Field 1: Plant Code
+CLEAR ls_fcat.
+ls_fcat-col_pos = '1'.           " Column position
+ls_fcat-fieldname = 'PLANT_CODE'. " Field name in ty_final
+ls_fcat-tabname = 'ty_final'.     " Table name
+ls_fcat-seltext_m = 'Plant Code'. " Selection text for Medium
+APPEND ls_fcat TO lt_fcat.
+
+* Field 2: Plant Name
+CLEAR ls_fcat.
+ls_fcat-col_pos = '2'.
+ls_fcat-fieldname = 'PLANT_NAME'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Plant Name'.
+APPEND ls_fcat TO lt_fcat.
+
+* Field 3: Customer Code
+CLEAR ls_fcat.
+ls_fcat-col_pos = '3'.
+ls_fcat-fieldname = 'CUSTOMER_CODE'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Customer Code'.
+APPEND ls_fcat TO lt_fcat.
+
+* Field 4: Customer Name
+CLEAR ls_fcat.
+ls_fcat-col_pos = '4'.
+ls_fcat-fieldname = 'CUSTOMER_NAME'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Customer Name'.
+APPEND ls_fcat TO lt_fcat.
+
+* Field 5: Item Proposal Number
+CLEAR ls_fcat.
+ls_fcat-col_pos = '5'.
+ls_fcat-fieldname = 'ITEM_PROPOSAL_NO'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Item Proposal No'.
+APPEND ls_fcat TO lt_fcat.
+
+* Field 6: Material Code
+CLEAR ls_fcat.
+ls_fcat-col_pos = '6'.
+ls_fcat-fieldname = 'MATERIAL_CODE'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Material Code'.
+APPEND ls_fcat TO lt_fcat.
+
+* Field 7: Material Name
+CLEAR ls_fcat.
+ls_fcat-col_pos = '7'.
+ls_fcat-fieldname = 'MATERIAL_NAME'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Material Name'.
+APPEND ls_fcat TO lt_fcat.
+
+* Field 8: Quantity
+CLEAR ls_fcat.
+ls_fcat-col_pos = '8'.
+ls_fcat-fieldname = 'QTY'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Quantity'.
+APPEND ls_fcat TO lt_fcat.
+
+* Field 9: Process Rate
+CLEAR ls_fcat.
+ls_fcat-col_pos = '9'.
+ls_fcat-fieldname = 'PROCESS_RATE'.
+ls_fcat-tabname = 'ty_final'.
+ls_fcat-seltext_m = 'Process Rate'.
+APPEND ls_fcat TO lt_fcat.
+
+* Display the field catalog (just for debugging, optional)
+
+ls_fcat-col_pos = '5'.
+ls_fcat-fieldname = 'sale_org'.
+ls_fcat-tabname = 'lt_final'.
+ls_fcat-seltext_l = 'Name sale_org'.
+APPEND ls_fcat TO lt_fcat.
+CLEAR ls_fcat.
+
+ls_fcat-col_pos = '6'.
+ls_fcat-fieldname = 'dis_chann'.
+ls_fcat-tabname = 'lt_final'.
+ls_fcat-seltext_l = 'Name dis_chann'.
+APPEND ls_fcat TO lt_fcat.
+CLEAR ls_fcat.
+
+ls_fcat-col_pos = '7'.
+ls_fcat-fieldname = 'division'.
+ls_fcat-tabname = 'lt_final'.
+ls_fcat-seltext_l = 'Name division'.
+APPEND ls_fcat TO lt_fcat.
+CLEAR ls_fcat.
+
+
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+  EXPORTING
+*   I_INTERFACE_CHECK              = ' '
+*   I_BYPASSING_BUFFER             =
+*   I_BUFFER_ACTIVE                = ' '
+*   I_CALLBACK_PROGRAM             = ' '
+*   I_CALLBACK_PF_STATUS_SET       = ' '
+*   I_CALLBACK_USER_COMMAND        = ' '
+*    I_STRUCTURE_NAME               = 'ZSTR2_SALES_27'
+*   IS_LAYOUT   =
+    it_fieldcat                     = lt_fcat
+*   IT_EXCLUDING                   =
+*   IT_SPECIAL_GROUPS              =
+*   IT_SORT     =
+*   IT_FILTER   =
+*   IS_SEL_HIDE =
+*   I_DEFAULT   = 'X'
+*   I_SAVE      = ' '
+*   IS_VARIANT  =
+*   IT_EVENTS   =
+*   IT_EVENT_EXIT                  =
+*   IS_PRINT    =
+*   IS_REPREP_ID                   =
+*   I_SCREEN_START_COLUMN          = 0
+*   I_SCREEN_START_LINE            = 0
+*   I_SCREEN_END_COLUMN            = 0
+*   I_SCREEN_END_LINE              = 0
+*   IR_SALV_LIST_ADAPTER           =
+*   IT_EXCEPT_QINFO                =
+*   I_SUPPRESS_EMPTY_DATA          = ABAP_FALSE
+* IMPORTING
+*   E_EXIT_CAUSED_BY_CALLER        =
+*   ES_EXIT_CAUSED_BY_USER         =
+  TABLES
+    t_outtab    = it_final
+ EXCEPTIONS
+   PROGRAM_ERROR                  = 1
+   OTHERS      = 2
+  .
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
