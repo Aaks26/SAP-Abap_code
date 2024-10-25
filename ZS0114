@@ -1,0 +1,122 @@
+*&---------------------------------------------------------------------*
+*& Report ZS0114
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zs0114.
+TABLES : with_item ,acdoca .
+*******************selection screen ************************************
+SELECT-OPTIONS : s_bukrs FOR with_item-bukrs.
+
+************************************************************************
+***************************DATA DECLARATION *****************************
+TYPES : BEGIN OF ty_with_item,
+          bukrs TYPE bukrs,     " company code
+          belnr TYPE belnr_d,   " Accounting Document Number
+          gjahr TYPE gjahr,     "Fiscal Year
+          buzei TYPE buzei ,    "Number of Line Item Within Accounting Document
+          witht TYPE witht,     "Indicator for Withholding Tax Type
+        END OF ty_with_item.
+
+TYPES : BEGIN OF ty_acdoca,
+          rbukrs TYPE bukrs,        "company code
+          prctr  TYPE prctr,        "profit center
+          gjahr  TYPE gjahr,        "fiscal year
+          belnr  TYPE belnr_d,      "Accounting Document Number
+          hsl    TYPE fins_vhcur12, " Amount in Company Code Currency
+        END OF ty_acdoca.
+
+TYPES : BEGIN OF TY_bkpf,
+          bukrs TYPE bukrs , " company code
+          belnr TYPE belnr_d, "doc num
+          bldat TYPE bldat, "doc date
+          cpudt TYPE cpudt, "entry date
+        END OF ty_bkpf.
+
+
+TYPES : BEGIN OF t001w,
+          werks TYPE werks_d,
+          name1 TYPE name1,
+        END OF t001w.
+
+TYPES : BEGIN OF ty_final,
+          bukrs    TYPE acdoca-rbukrs,
+          lv_plant TYPE acdoca-werks,
+          name1    TYPE t001w-name1,
+          belnr    TYPE acdoca-belnr,
+          bldat    TYPE bkpf-bldat,
+          cpudt    TYPE bkpf-cpudt,
+          gjahr    TYPE acdoca-gjahr,
+
+        END OF ty_final.
+
+DATA: it_wit    TYPE TABLE OF ty_with_item,
+      wa_wit    TYPE ty_with_item,
+      it_acdoca TYPE TABLE OF ty_acdoca,
+      wa_acdoca TYPE ty_acdoca,
+      it_t001w  TYPE TABLE OF t001w,
+      wa_t001w  TYPE t001w,
+      it_bkpf   TYPE TABLE OF ty_bkpf,
+      wa_bkpf   TYPE ty_bkpf,
+      it_final  TYPE TABLE OF ty_final,
+      wa_final  TYPE ty_final.
+
+
+
+
+*********************************************************************
+
+START-OF-SELECTION.
+  SELECT bukrs belnr gjahr buzei witht
+    INTO TABLE it_wit
+    FROM with_item
+    WHERE bukrs IN  s_bukrs.
+
+  IF it_wit IS NOT INITIAL.
+    SELECT rbukrs prctr gjahr belnr hsl
+      INTO TABLE it_acdoca
+      FROM acdoca
+      FOR ALL ENTRIES IN it_wit
+      WHERE rbukrs = it_wit-bukrs AND gjahr = it_wit-gjahr AND belnr = it_wit-belnr.
+  ENDIF.
+
+  SELECT werks name1
+    FROM t001w
+    INTO TABLE it_t001w
+    FOR ALL ENTRIES IN it_final
+    WHERE werks = it_final-lv_plant.
+
+
+  SELECT bukrs belnr bldat cpudt
+    INTO TABLE it_bkpf
+    FROM bkpf
+    FOR ALL ENTRIES IN it_acdoca
+    WHERE bukrs = it_acdoca-rbukrs AND belnr = it_acdoca-belnr.
+
+end-of-SELECTION.
+
+  LOOP AT it_wit INTO wa_wit.
+    CLEAR wa_final.
+    wa_final-bukrs = wa_wit-bukrs.
+
+    READ TABLE it_acdoca INTO wa_acdoca  WITH KEY rbukrs = wa_wit-bukrs.
+    IF sy-subrc = 0.
+      "Derive plant from the first 4 characters of profit center
+      wa_final-lv_plant = wa_acdoca-prctr+0(4).
+      wa_final-belnr = wa_acdoca-belnr.
+      wa_final-gjahr = wa_acdoca-gjahr.
+
+      READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_final-lv_plant.
+      wa_final-name1 = wa_t001w-name1.
+
+      READ TABLE it_bkpf INTO wa_bkpf WITH KEY  bukrs = wa_acdoca-rbukrs .
+      wa_final-bldat  = wa_bkpf-bldat.
+      wa_final-cpudt  =  wa_bkpf-cpudt.
+
+      "* Append to final output table
+      APPEND wa_final TO it_final.
+    ENDIF.
+
+  ENDLOOP.
+
+  cl_demo_output=>display( it_final ).
