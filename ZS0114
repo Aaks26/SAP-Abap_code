@@ -16,6 +16,7 @@ TYPES : BEGIN OF ty_with_item,
           gjahr TYPE gjahr,     "Fiscal Year
           buzei TYPE buzei ,    "Number of Line Item Within Accounting Document
           witht TYPE witht,     "Indicator for Withholding Tax Type
+          WT_ACCO TYPE WT_ACNO,   "Vendor/Customer Account Number
         END OF ty_with_item.
 
 TYPES : BEGIN OF ty_acdoca,
@@ -39,6 +40,20 @@ TYPES : BEGIN OF t001w,
           name1 TYPE name1,
         END OF t001w.
 
+TYPES : BEGIN OF ty_T059Z,
+  LAND1 TYPE LAND1, "Country/Region Key
+  WITHT TYPE WITHT, "Indicator for Withholding Tax Type
+  WT_WITHCD TYPE WT_WITHCD, "Withholding Tax Code
+  QSCOD TYPE WT_OWTCD ,"Official Withholding Tax Key
+  END OF ty_t059z.
+
+
+TYPES : BEGIN OF ty_lfa1,
+        LIFNR TYPE LIFNR, " Account Number of Supplier
+  END OF ty_lfa1.
+
+
+
 TYPES : BEGIN OF ty_final,
           bukrs    TYPE acdoca-rbukrs,
           lv_plant TYPE acdoca-werks,
@@ -46,6 +61,8 @@ TYPES : BEGIN OF ty_final,
           belnr    TYPE acdoca-belnr,
           bldat    TYPE bkpf-bldat,
           cpudt    TYPE bkpf-cpudt,
+                              "CHALLANSERIALNO
+          QSCOD    TYPE T059Z-wt_withcd,
           gjahr    TYPE acdoca-gjahr,
 
         END OF ty_final.
@@ -58,6 +75,10 @@ DATA: it_wit    TYPE TABLE OF ty_with_item,
       wa_t001w  TYPE t001w,
       it_bkpf   TYPE TABLE OF ty_bkpf,
       wa_bkpf   TYPE ty_bkpf,
+      it_T059Z  TYPE TABLE of ty_T059Z,
+      wa_T059Z  TYPE ty_T059Z,
+      it_lfa1   TYPE TABLE of ty_lfa1,
+      wa_lfa1   TYPE ty_lfa1,
       it_final  TYPE TABLE OF ty_final,
       wa_final  TYPE ty_final.
 
@@ -67,7 +88,7 @@ DATA: it_wit    TYPE TABLE OF ty_with_item,
 *********************************************************************
 
 START-OF-SELECTION.
-  SELECT bukrs belnr gjahr buzei witht
+  SELECT bukrs belnr gjahr buzei witht WT_ACCO
     INTO TABLE it_wit
     FROM with_item
     WHERE bukrs IN  s_bukrs.
@@ -93,8 +114,19 @@ START-OF-SELECTION.
     FOR ALL ENTRIES IN it_acdoca
     WHERE bukrs = it_acdoca-rbukrs AND belnr = it_acdoca-belnr.
 
+    SELECT LAND1 WITHT WT_WITHCD QSCOD
+      INTO TABLE it_t059z
+      FROM t059z
+      FOR ALL ENTRIES IN it_wit
+      where WITHT = it_wit-WITHT.
+
+SELECT lifnr
+  INTO TABLE it_lfa1
+  FROM lfa1
+  FOR ALL ENTRIES IN it_wit
+  where lifnr = it_wit-WT_ACCO.
+
 end-of-SELECTION.
-*****************************************************************************
 
   LOOP AT it_wit INTO wa_wit.
     CLEAR wa_final.
@@ -113,6 +145,8 @@ end-of-SELECTION.
       READ TABLE it_bkpf INTO wa_bkpf WITH KEY  bukrs = wa_acdoca-rbukrs .
       wa_final-bldat  = wa_bkpf-bldat.
       wa_final-cpudt  =  wa_bkpf-cpudt.
+
+      READ TABLE it_T059Z INTO wa_T059Z with key WITHT = wa_wit-WITHT.
 
       "* Append to final output table
       APPEND wa_final TO it_final.
