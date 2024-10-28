@@ -94,6 +94,7 @@ START-OF-SELECTION.
     WHERE bukrs = it_acdoca-rbukrs AND belnr = it_acdoca-belnr.
 
 end-of-SELECTION.
+*****************************************************************************
 
   LOOP AT it_wit INTO wa_wit.
     CLEAR wa_final.
