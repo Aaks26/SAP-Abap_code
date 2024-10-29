@@ -9,118 +9,217 @@ TABLES : with_item ,acdoca,t001w, bkpf .
 *******************selection screen ************************************
 SELECT-OPTIONS : s_bukrs FOR with_item-bukrs,
                   s_werks FOR t001w-werks,
-                  s_GJAHR FOR bkpf-GJAHR,
+                  s_GJAHR FOR bkpf-gjahr,
                   s_belnr FOR with_item-belnr.
 
 ************************************************************************
 ***************************DATA DECLARATION *****************************
 *-----------with_item---------------
 TYPES : BEGIN OF ty_with_item,
-          bukrs TYPE bukrs,     " company code
-          BELNR TYPE BELNR_D,    "Accounting Document Number
+          bukrs     TYPE bukrs,     " company code
+          belnr     TYPE belnr_d,    "Accounting Document Number
+          witht     TYPE witht,
+          wt_withcd TYPE wt_withcd,
+          wt_amnman TYPE wt_amnman,
+          wt_qsshh  TYPE wt_bs,
+          qsatz     TYPE wt_qsatz,
+          wt_qbshh  TYPE wt_wt,
+          WT_ACCO   TYPE WT_ACNO,
         END OF ty_with_item.
 *----------ACDOCA------------------
-        TYPES : BEGIN OF ty_acdoca,
-          RBUKRS TYPE BUKRS,
-          PRCTR TYPE PRCTR, " profit-center
-          BELNR TYPE BELNR_D, "Accounting Document Number
-          WERKS TYPE WERKS_D, "plant
-          END OF ty_acdoca.
+TYPES : BEGIN OF ty_acdoca,
+          rbukrs TYPE bukrs,
+          prctr  TYPE prctr, " profit-center
+          belnr  TYPE belnr_d, "Accounting Document Number
+          werks  TYPE werks_d, "plant
+        END OF ty_acdoca.
 *------------t001w------------------
-          TYPES: BEGIN OF ty_t001w,
-            WERKS TYPE WERKS_D,
-            NAME1 TYPE NAME1,
-            END OF ty_t001w.
+TYPES: BEGIN OF ty_t001w,
+         werks TYPE werks_d,
+         name1 TYPE name1,
+       END OF ty_t001w.
 *------------BKPf--------------------
-            TYPES: BEGIN OF ty_bkpf,
-              BUKRS TYPE BUKRS, "company code
-              BELNR TYPE BELNR_D, " Accounting Document Number
-              GJAHR TYPE GJAHR, "year
-              BLDAT TYPE BLDAT, "doc. date
-              CPUDT TYPE CPUDT, "Entered date
-              END OF ty_bkpf.
+TYPES: BEGIN OF ty_bkpf,
+         bukrs TYPE bukrs, "company code
+         belnr TYPE belnr_d, " Accounting Document Number
+         gjahr TYPE gjahr, "year
+         bldat TYPE bldat, "doc. date
+         cpudt TYPE cpudt, "Entered date
+       END OF ty_bkpf.
+*----------------t059z------------------
+TYPES : BEGIN OF ty_T059Z,
+          witht     TYPE witht,
+          wt_withcd TYPE wt_withcd,
+          qscod     TYPE wt_owtcd,
+        END OF ty_t059z.
+*-------------T059D--------------------
+TYPES : BEGIN OF ty_T059D,
+          land1 TYPE land1,
+          witht TYPE witht,
+          rctxt TYPE text30,
+        END OF ty_t059d.
+*------------LFA1---------------------
+TYPES : BEGIN OF ty_lfa1,
+          land1     TYPE land1_gp,
+          j_1ipanno TYPE j_1ipanno,
+          LIFNR     TYPE LIFNR,
+        END OF TY_lfa1.
+
 *--------final-----------
-        TYPES: BEGIN OF ty_final,
-          bukrs TYPE with_item-bukrs,
-          lv_plant TYPE acdoca-werks,
-          NAME1 TYPE t001w-NAME1,
-          belnr TYPE acdoca-belnr,
-          GJAHR TYPE bkpf-GJAHR,
-          bldat TYPE bkpf-bldat,
-          cpudt TYPE bkpf-cpudt,
+TYPES: BEGIN OF ty_final,
+         bukrs       TYPE with_item-bukrs,
+         lv_plant    TYPE acdoca-werks,
+         name1       TYPE t001w-name1,
+         belnr       TYPE acdoca-belnr,
+         gjahr       TYPE bkpf-gjahr,
+         bldat       TYPE bkpf-bldat,
+         cpudt       TYPE bkpf-cpudt,
+         lv_chalanno TYPE i,
+         lv_Scode    TYPE t059z-qscod,
+         rctxt       TYPE t059d-rctxt,
+         j_1ipanno   TYPE lfa1-j_1ipanno,
+       END OF ty_final.
 
-
-          end of ty_final.
+DATA : lv_chalano VALUE 0.
 
 *****************INTERNAL TABLE ******************************************
-DATA: it_wit TYPE TABLE OF ty_with_item,
+DATA: it_wit    TYPE TABLE OF ty_with_item,
       it_acdoca TYPE TABLE OF ty_acdoca,
-      it_t001w TYPE TABLE OF ty_t001w,
-      it_bkpf TYPE TABLE OF ty_bkpf,
-      it_final TYPE TABLE OF ty_final.
+      it_t001w  TYPE TABLE OF ty_t001w,
+      it_bkpf   TYPE TABLE OF ty_bkpf,
+      it_t059z  TYPE TABLE OF ty_t059z,
+      it_T059D  TYPE TABLE OF ty_T059D,
+      it_lfa1   TYPE TABLE OF ty_lfa1,
+      it_final  TYPE TABLE OF ty_final.
 
 
 
 ******************** WORK-AREA****************************
-DATA :wa_wit TYPE ty_with_item,
+DATA :wa_wit    TYPE ty_with_item,
       wa_acdoca TYPE ty_acdoca,
-      wa_t001w TYPE ty_t001w,
-      wa_bkpf TYPE ty_bkpf,
-      wa_final TYPE ty_final.
+      wa_t001w  TYPE ty_t001w,
+      wa_bkpf   TYPE ty_bkpf,
+      wa_t059z  TYPE ty_t059z,
+      wa_T059D  TYPE ty_T059D,
+      wa_lfa1   TYPE ty_lfa1,
+      wa_final  TYPE ty_final.
 
 ***************************************************************************
 
 START-OF-SELECTION.
 
-  SELECT bukrs BELNR
+  SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh WT_ACCO
     INTO TABLE it_wit
     FROM with_item
-    WHERE bukrs IN s_bukrs and BELNR in s_belnr.
+    WHERE bukrs IN s_bukrs AND belnr IN s_belnr.
 
-IF it_wit is NOT INITIAL.
-SELECT RBUKRS PRCTR BELNR
-  INTO TABLE it_ACDOCA
-  FROM acdoca
-  FOR ALL ENTRIES IN it_wit
-  WHERE rbukrs = it_wit-bukrs  AND BELNR = it_wit-BELNR .
-ENDIF.
+  IF it_wit IS NOT INITIAL.
+    SELECT rbukrs prctr belnr
+      INTO TABLE it_ACDOCA
+      FROM acdoca
+      FOR ALL ENTRIES IN it_wit
+      WHERE rbukrs = it_wit-bukrs  AND belnr = it_wit-belnr .
+  ENDIF.
 
-IF it_acdoca is NOT INITIAL.
-SELECT werks NAME1
-  INTO TABLE it_t001w
-  FROM t001w
-  FOR ALL ENTRIES IN it_acdoca
-  where werks = it_acdoca-prctr+0(4).
-ENDIF.
+  IF it_acdoca IS NOT INITIAL.
+    SELECT werks name1
+      INTO TABLE it_t001w
+      FROM t001w
+      FOR ALL ENTRIES IN it_acdoca
+      WHERE werks = it_acdoca-prctr+0(4).
+  ENDIF.
 
-IF it_wit is NOT INITIAL.
-SELECT bukrs belnr GJAHR bldat  cpudt
-  INTO TABLE it_bkpf
-  FROM bkpf
-  for ALL ENTRIES IN it_wit
-  where bukrs = it_wit-bukrs and belnr = it_wit-belnr and GJAHR = s_GJAHR.
-ENDIF.
+  IF it_wit IS NOT INITIAL.
+    SELECT bukrs belnr gjahr bldat cpudt
+      INTO TABLE it_bkpf
+      FROM bkpf
+      FOR ALL ENTRIES IN it_wit
+      WHERE bukrs = it_wit-bukrs OR bukrs = s_bukrs
+        AND gjahr = s_GJAHR AND belnr = it_wit-belnr
+        OR belnr = s_belnr.
+  ENDIF.
+
+  IF it_wit IS NOT INITIAL.
+    SELECT witht wt_withcd qscod
+      INTO TABLE it_t059z
+      FROM t059z
+      FOR ALL ENTRIES IN it_wit
+      WHERE witht = it_wit-witht  AND wt_withcd = it_wit-wt_withcd .
+  ENDIF.
+
+  IF  it_t059z IS NOT INITIAL.
+    SELECT land1 witht rctxt
+     INTO TABLE it_T059D
+      FROM t059d
+      FOR ALL ENTRIES IN it_t059z
+      WHERE witht = it_t059z-witht.
+  ENDIF.
+
+  IF it_wit IS NOT INITIAL.
+    SELECT land1 j_1ipanno LIFNR
+      INTO TABLE it_lfa1
+      FROM lfa1
+      FOR ALL ENTRIES IN it_wit
+      WHERE LIFNR = it_wit-WT_ACCO.
+  ENDIF.
+
 END-OF-SELECTION.
 
-LOOP AT it_wit INTO wa_wit.
-wa_final-bukrs = wa_wit-bukrs.
-wa_final-belnr  = wa_wit-belnr.
+  LOOP AT it_wit INTO wa_wit.
+    wa_final-bukrs = wa_wit-bukrs.
+    wa_final-belnr  = wa_wit-belnr.
 
 
-READ TABLE it_acdoca INTO wa_acdoca WITH  KEY wa_wit-bukrs.
-wa_final-lv_plant = wa_acdoca-prctr+0(4).
+    READ TABLE it_acdoca INTO wa_acdoca WITH  KEY wa_wit-bukrs.
+    wa_final-lv_plant = wa_acdoca-prctr+0(4).
 
-READ TABLE it_t001w INTO wa_t001w with key wa_acdoca-prctr+0(4).
-wa_final-NAME1 = wa_t001w-NAME1.
+    READ TABLE it_t001w INTO wa_t001w WITH KEY wa_acdoca-prctr+0(4).
+    wa_final-name1 = wa_t001w-name1.
 
-READ TABLE it_bkpf INTO wa_bkpf WITH  KEY wa_wit-belnr .
-wa_final-GJAHR = wa_bkpf-GJAHR.
-wa_final-bldat = wa_bkpf-bldat.
-wa_final-cpudt = wa_bkpf-cpudt.
+    READ TABLE it_bkpf INTO wa_bkpf WITH  KEY wa_wit-bukrs .
+    wa_final-gjahr = wa_bkpf-gjahr.
+    wa_final-bldat = wa_bkpf-bldat.
+    wa_final-cpudt = wa_bkpf-cpudt.
 
-"APPEND
-append wa_final to it_final.
-ENDLOOP.
+    READ TABLE it_t059z INTO wa_t059z WITH KEY wa_wit-witht.
+
+    IF wa_wit-wt_amnman = 'X'.
+      DATA(lv_rate) = ( wa_wit-wt_qbshh / wa_wit-wt_qsshh ) * 100.
+    ELSE.
+      lv_rate = wa_wit-qsatz.
+    ENDIF.
+
+    CASE wa_t059z-qscod.
+      WHEN '94C'.
+        wa_t059z-qscod = '194C'.
+      WHEN '194I'.
+        IF lv_rate = 2.
+          wa_t059z-qscod = '194I(a)'.
+        ELSEIF lv_rate = 10.
+          wa_t059z-qscod = '194I(b)'.
+        ELSE.
+          wa_t059z-qscod = wa_t059z-qscod.
+        ENDIF.
+        wa_t059z-qscod = wa_t059z-qscod.
+      WHEN OTHERS.
+    ENDCASE.
+    wa_final-lv_Scode = wa_t059z-qscod.
+
+    READ TABLE it_T059D INTO wa_T059D WITH KEY wa_t059z-witht.
+    CASE wa_t059d-rctxt.
+      WHEN 'Company'.
+        wa_t059d-rctxt = '01-Companies'.
+      WHEN OTHERS.
+        wa_t059d-rctxt = '02-Other than Companies'.
+    ENDCASE.
+    wa_final-rctxt = wa_t059d-rctxt.
+
+    READ TABLE it_lfa1 INTO wa_lfa1  WITH KEY j_1ipanno = wa_wit-WT_ACCO.
+    wa_final-j_1ipanno = wa_lfa1-j_1ipanno.
+
+    "APPEND to final table
+    APPEND wa_final TO it_final.
+  ENDLOOP.
 
 
   cl_demo_output=>display( it_final ).
