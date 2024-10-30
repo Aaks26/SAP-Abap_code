@@ -24,7 +24,7 @@ TYPES : BEGIN OF ty_with_item,
           wt_qsshh  TYPE wt_bs,
           qsatz     TYPE wt_qsatz,
           wt_qbshh  TYPE wt_wt,
-          WT_ACCO   TYPE WT_ACNO,
+          wt_acco   TYPE wt_acno,
         END OF ty_with_item.
 *----------ACDOCA------------------
 TYPES : BEGIN OF ty_acdoca,
@@ -45,6 +45,8 @@ TYPES: BEGIN OF ty_bkpf,
          gjahr TYPE gjahr, "year
          bldat TYPE bldat, "doc. date
          cpudt TYPE cpudt, "Entered date
+         BLART TYPE BLART, "TYPE
+         BUDAT TYPE BUDAT,
        END OF ty_bkpf.
 *----------------t059z------------------
 TYPES : BEGIN OF ty_T059Z,
@@ -62,25 +64,63 @@ TYPES : BEGIN OF ty_T059D,
 TYPES : BEGIN OF ty_lfa1,
           land1     TYPE land1_gp,
           j_1ipanno TYPE j_1ipanno,
-          LIFNR     TYPE LIFNR,
+          lifnr     TYPE lifnr,
+          adrnr     TYPE adrnr,
+          stras     TYPE stras_gp,
+          REGIO     TYPE REGIO,
         END OF TY_lfa1.
+*-----------but000------------------------
+TYPES : BEGIN OF ty_but000,
+          partner   TYPE bu_partner,
+          name_org1 TYPE bu_nameor1,
+          name_org2 TYPE bu_nameor2,
+          name_org3 TYPE bu_nameor3,
+        END OF ty_but000.
+*-------------ADRC--------------------------
+TYPES : BEGIN OF ty_adrc,
+          addrnumber TYPE ad_addrnum,
+          str_suppl1 TYPE ad_strspp1,
+          str_suppl2 TYPE ad_strspp2,
+          str_suppl3 TYPE ad_strspp3,
+          street     TYPE ad_street,
+          POST_CODE1 TYPE AD_PSTCD1,
+        END OF ty_adrc.
+*--------------t005u--------------
+        TYPES : BEGIN OF ty_t005u,
+          BLAND TYPE REGIO,
+          BEZEI TYPE BEZEI20,
+          END OF ty_t005u.
 
 *--------final-----------
 TYPES: BEGIN OF ty_final,
-         bukrs       TYPE with_item-bukrs,
-         lv_plant    TYPE acdoca-werks,
-         name1       TYPE t001w-name1,
-         belnr       TYPE acdoca-belnr,
-         gjahr       TYPE bkpf-gjahr,
-         bldat       TYPE bkpf-bldat,
-         cpudt       TYPE bkpf-cpudt,
-         lv_chalanno TYPE i,
-         lv_Scode    TYPE t059z-qscod,
-         rctxt       TYPE t059d-rctxt,
-         j_1ipanno   TYPE lfa1-j_1ipanno,
+         bukrs               TYPE with_item-bukrs,
+         lv_plant            TYPE acdoca-werks,
+         name1               TYPE t001w-name1,
+         belnr               TYPE acdoca-belnr,
+         gjahr               TYPE bkpf-gjahr,
+         bldat               TYPE bkpf-bldat,
+         cpudt               TYPE bkpf-cpudt,
+         lv_chalanno         TYPE i,
+         lv_Scode            TYPE t059z-qscod,
+         rctxt               TYPE t059d-rctxt,
+         j_1ipanno           TYPE lfa1-j_1ipanno,
+         lv_Drffno           TYPE i,
+         lv_name             TYPE but000-name_org1,
+         str_suppl1          TYPE adrc-str_suppl1,
+         str_suppl2          TYPE adrc-str_suppl2,
+         street              TYPE adrc-street,
+         lv_DEDUCTEEADDRESS5 TYPE i,
+          BLAND              TYPE t005u-BLAND,
+        POST_CODE1           TYPE adrc-POST_CODE1,
+        lv_AMOUNTOFPAYMENT   TYPE i,
+        BUDAT                TYPE bkpf-BUDAT,
+        lv_RATEATWHICHTAXDEDUCTED TYPE i,
+
        END OF ty_final.
 
-DATA : lv_chalano VALUE 0.
+DATA : lv_chalano          VALUE 0,
+       lv_drffno           VALUE 0,
+       lv_DEDUCTEEADDRESS5 VALUE 0.
 
 *****************INTERNAL TABLE ******************************************
 DATA: it_wit    TYPE TABLE OF ty_with_item,
@@ -90,6 +130,9 @@ DATA: it_wit    TYPE TABLE OF ty_with_item,
       it_t059z  TYPE TABLE OF ty_t059z,
       it_T059D  TYPE TABLE OF ty_T059D,
       it_lfa1   TYPE TABLE OF ty_lfa1,
+      it_but000 TYPE TABLE OF ty_but000,
+      it_adrc   TYPE TABLE OF ty_adrc,
+      it_t005u   TYPE TABLE OF ty_t005u,
       it_final  TYPE TABLE OF ty_final.
 
 
@@ -102,13 +145,16 @@ DATA :wa_wit    TYPE ty_with_item,
       wa_t059z  TYPE ty_t059z,
       wa_T059D  TYPE ty_T059D,
       wa_lfa1   TYPE ty_lfa1,
+      wa_but000 TYPE ty_but000,
+      wa_adrc   TYPE ty_adrc,
+      wa_t005u   TYPE ty_t005u,
       wa_final  TYPE ty_final.
 
 ***************************************************************************
 
 START-OF-SELECTION.
 
-  SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh WT_ACCO
+  SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh wt_acco
     INTO TABLE it_wit
     FROM with_item
     WHERE bukrs IN s_bukrs AND belnr IN s_belnr.
@@ -130,7 +176,7 @@ START-OF-SELECTION.
   ENDIF.
 
   IF it_wit IS NOT INITIAL.
-    SELECT bukrs belnr gjahr bldat cpudt
+    SELECT bukrs belnr gjahr bldat cpudt BLART BUDAT
       INTO TABLE it_bkpf
       FROM bkpf
       FOR ALL ENTRIES IN it_wit
@@ -156,11 +202,33 @@ START-OF-SELECTION.
   ENDIF.
 
   IF it_wit IS NOT INITIAL.
-    SELECT land1 j_1ipanno LIFNR
+    SELECT land1 j_1ipanno lifnr adrnr stras REGIO
       INTO TABLE it_lfa1
       FROM lfa1
       FOR ALL ENTRIES IN it_wit
-      WHERE LIFNR = it_wit-WT_ACCO.
+      WHERE lifnr = it_wit-wt_acco.
+  ENDIF.
+
+  IF it_lfa1 IS NOT INITIAL.
+    SELECT partner  name_org1 name_org2 name_org3
+      INTO TABLE it_but000
+      FROM but000
+      FOR ALL ENTRIES IN it_lfa1
+      WHERE partner = it_lfa1-lifnr.
+  ENDIF.
+  IF it_lfa1 IS NOT INITIAL.
+    SELECT addrnumber str_suppl1 str_suppl2 str_suppl3 street POST_CODE1
+      INTO TABLE it_adrc
+      FROM adrc
+      FOR ALL ENTRIES IN it_lfa1
+      WHERE addrnumber = it_lfa1-adrnr.
+  ENDIF.
+  IF it_lfa1 is NOT INITIAL.
+SELECT BLAND BEZEI
+  INTO TABLE it_t005u
+  FROM t005u
+  FOR ALL ENTRIES IN it_lfa1
+  where BLAND = it_lfa1-REGIO.
   ENDIF.
 
 END-OF-SELECTION.
@@ -169,6 +237,12 @@ END-OF-SELECTION.
     wa_final-bukrs = wa_wit-bukrs.
     wa_final-belnr  = wa_wit-belnr.
 
+CASE wa_wit-WT_AMNMAN.
+  WHEN 'X'.
+wa_final-lv_RATEATWHICHTAXDEDUCTED = Wa_wit-WT_QBSHH / Wa_wit-WT_QSSHH * 100.
+    WHEN OTHERS.
+wa_final-lv_RATEATWHICHTAXDEDUCTED = wa_wit-QSATZ.
+ENDCASE.
 
     READ TABLE it_acdoca INTO wa_acdoca WITH  KEY wa_wit-bukrs.
     wa_final-lv_plant = wa_acdoca-prctr+0(4).
@@ -177,9 +251,20 @@ END-OF-SELECTION.
     wa_final-name1 = wa_t001w-name1.
 
     READ TABLE it_bkpf INTO wa_bkpf WITH  KEY wa_wit-bukrs .
+    CASE wa_bkpf-BLART.
+  WHEN 'KZ' OR 'KB' OR 'ZP'.
+    wa_final-lv_AMOUNTOFPAYMENT = wa_wit-WT_QSSHH.
+  WHEN OTHERS.
+    wa_final-lv_AMOUNTOFPAYMENT = wa_wit-WT_QSSHH * 1.
+ENDCASE.
+
+
     wa_final-gjahr = wa_bkpf-gjahr.
     wa_final-bldat = wa_bkpf-bldat.
     wa_final-cpudt = wa_bkpf-cpudt.
+    wa_final-BUDAT = wa_bkpf-BUDAT.
+
+
 
     READ TABLE it_t059z INTO wa_t059z WITH KEY wa_wit-witht.
 
@@ -214,9 +299,29 @@ END-OF-SELECTION.
     ENDCASE.
     wa_final-rctxt = wa_t059d-rctxt.
 
-    READ TABLE it_lfa1 INTO wa_lfa1  WITH KEY j_1ipanno = wa_wit-WT_ACCO.
+    READ TABLE it_lfa1 INTO wa_lfa1  WITH KEY  lifnr = wa_wit-wt_acco.
     wa_final-j_1ipanno = wa_lfa1-j_1ipanno.
 
+
+    READ TABLE it_but000 INTO wa_but000 WITH  KEY partner = wa_lfa1-lifnr.
+    IF wa_but000-name_org1 IS NOT INITIAL.
+      wa_final-lv_name = wa_but000-name_org1.
+    ELSEIF wa_but000-name_org2 IS NOT INITIAL.
+      wa_final-lv_name = wa_but000-name_org2.
+    ELSEIF wa_but000-name_org3 IS NOT INITIAL.
+      wa_final-lv_name = wa_but000-name_org3.
+    ELSE.
+      wa_final-lv_name = 'No name available'. " Fallback if all fields are empty
+    ENDIF.
+
+    READ TABLE it_adrc INTO wa_adrc WITH KEY addrnumber = wa_lfa1-adrnr.
+    wa_final-str_suppl1 = wa_adrc-str_suppl1.
+    wa_final-str_suppl2 = wa_adrc-str_suppl2.
+    wa_final-street = wa_adrc-street.
+    wa_final-POST_CODE1 = wa_adrc-POST_CODE1.
+
+READ TABLE it_t005u INTO wa_t005u WITH key BLAND = wa_lfa1-REGIO.
+wa_final-BLAND = wa_t005u-BLAND.
     "APPEND to final table
     APPEND wa_final TO it_final.
   ENDLOOP.
