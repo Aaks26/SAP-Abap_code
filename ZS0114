@@ -12,85 +12,84 @@ INCLUDE Zinclude_s0114_top.
 
 
 START-OF-SELECTION.
-  SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh wt_acco wt_wtexmn GJAHR
+
+  " Step 1: Fetch data into `it_wit` table
+  SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh wt_acco wt_wtexmn gjahr
     INTO TABLE it_wit
     FROM with_item
-    WHERE bukrs IN s_bukrs  and gjahr in s_gjahr.
+    WHERE bukrs IN s_bukrs AND gjahr IN s_gjahr.
 
-    IF it_wit IS NOT INITIAL.
-      SELECT rbukrs prctr belnr gjahr
-        INTO TABLE it_ACDOCA
-        FROM acdoca
-        FOR ALL ENTRIES IN it_wit
-        WHERE rbukrs = it_wit-bukrs  AND belnr = it_wit-belnr.
+  IF it_wit IS NOT INITIAL.
 
-    ENDIF.
+    " Step 2: Fetch data into `it_acdoca` based on `it_wit`
+    SELECT rbukrs prctr belnr gjahr
+      INTO TABLE it_acdoca
+      FROM acdoca
+      FOR ALL ENTRIES IN it_wit
+      WHERE rbukrs = it_wit-bukrs
+        AND gjahr = it_wit-gjahr
+        AND belnr = it_wit-belnr.
 
-  IF it_acdoca IS NOT INITIAL.
+    " Step 3: Fetch plant details from `t001w` table
     SELECT werks name1
       INTO TABLE it_t001w
       FROM t001w
       FOR ALL ENTRIES IN it_acdoca
       WHERE werks = it_acdoca-prctr+0(4).
 
-  ENDIF.
-  IF it_wit IS NOT INITIAL.
+    " Step 4: Fetch data from `bkpf` based on `it_acdoca`
     SELECT bukrs belnr gjahr bldat cpudt blart budat
       INTO TABLE it_bkpf
       FROM bkpf
-      FOR ALL ENTRIES IN it_wit
-      WHERE  belnr = it_wit-belnr
-      and bukrs = it_wit-bukrs AND bukrs in s_bukrs
-      and gjahr = it_wit-gjahr AND gjahr in s_gjahr
-      and bldat in s_bldat .
-  ENDIF.
+      FOR ALL ENTRIES IN it_acdoca
+      WHERE belnr = it_acdoca-belnr
+        AND bukrs = it_acdoca-rbukrs
+        AND gjahr = it_acdoca-gjahr
+        AND bukrs IN s_bukrs
+        AND gjahr IN s_gjahr
+        AND bldat IN s_bldat.
 
-  IF it_wit IS NOT INITIAL.
+    " Step 5: Fetch withholding tax codes from `t059z`
     SELECT witht wt_withcd qscod
       INTO TABLE it_t059z
       FROM t059z
       FOR ALL ENTRIES IN it_wit
-      WHERE witht = it_wit-witht  AND wt_withcd = it_wit-wt_withcd .
-  ENDIF.
+      WHERE witht = it_wit-witht
+        AND wt_withcd = it_wit-wt_withcd.
 
-  IF  it_t059z IS NOT INITIAL.
+    " Step 6: Fetch text descriptions for withholding types from `t059d`
     SELECT land1 witht rctxt
-     INTO TABLE it_T059D
+      INTO TABLE it_t059d
       FROM t059d
       FOR ALL ENTRIES IN it_t059z
       WHERE witht = it_t059z-witht.
-  ENDIF.
 
-  IF it_wit IS NOT INITIAL.
+    " Step 7: Fetch vendor data from `lfa1`
     SELECT land1 j_1ipanno lifnr adrnr stras regio
       INTO TABLE it_lfa1
       FROM lfa1
       FOR ALL ENTRIES IN it_wit
       WHERE lifnr = it_wit-wt_acco.
-  ENDIF.
 
-  IF it_lfa1 IS NOT INITIAL.
-    SELECT partner  name_org1 name_org2 name_org3
+    " Step 8: Fetch additional vendor data from `but000`, `adrc`, `t005u`, and `adr6`
+    SELECT partner name_org1 name_org2 name_org3
       INTO TABLE it_but000
       FROM but000
       FOR ALL ENTRIES IN it_lfa1
       WHERE partner = it_lfa1-lifnr.
-  ENDIF.
-  IF it_lfa1 IS NOT INITIAL.
+
     SELECT addrnumber str_suppl1 str_suppl2 str_suppl3 street post_code1
       INTO TABLE it_adrc
       FROM adrc
       FOR ALL ENTRIES IN it_lfa1
       WHERE addrnumber = it_lfa1-adrnr.
-  ENDIF.
-  IF it_lfa1 IS NOT INITIAL.
+
     SELECT bland bezei
       INTO TABLE it_t005u
       FROM t005u
       FOR ALL ENTRIES IN it_lfa1
       WHERE bland = it_lfa1-regio.
-  ENDIF.
-  IF it_lfa1 IS NOT INITIAL.
+
     SELECT addrnumber smtp_srch
       INTO TABLE it_adr6
       FROM adr6
@@ -102,7 +101,7 @@ START-OF-SELECTION.
 END-OF-SELECTION.
 
 
-  LOOP AT it_wit INTO wa_wit.
+LOOP AT it_wit INTO wa_wit.
     wa_final-bukrs = wa_wit-bukrs.
     wa_final-belnr  = wa_wit-belnr.
     wa_final-reason  = wa_wit-wt_wtexmn.
@@ -115,13 +114,14 @@ END-OF-SELECTION.
         wa_final-lv_RATEATWHICHTAXDEDUCTED = wa_wit-qsatz.
     ENDCASE.
 
-    READ TABLE it_acdoca INTO wa_acdoca WITH  KEY wa_wit-bukrs.
-    wa_final-lv_plant = wa_acdoca-prctr+0(4).
+    READ TABLE it_acdoca INTO wa_acdoca WITH  KEY rbukrs = wa_wit-bukrs  gjahr = wa_wit-gjahr belnr = wa_wit-belnr.
 
-    READ TABLE it_t001w INTO wa_t001w WITH KEY wa_acdoca-prctr+0(4).
+    wa_final-werks = wa_acdoca-prctr+0(4).
+
+    READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_acdoca-prctr+0(4).
     wa_final-name1 = wa_t001w-name1.
 
-    READ TABLE it_bkpf INTO wa_bkpf WITH  KEY wa_wit-bukrs .
+    READ TABLE it_bkpf INTO wa_bkpf WITH  KEY  belnr = wa_acdoca-belnr  bukrs = wa_acdoca-rbukrs gjahr = wa_acdoca-gjahr.
     CASE wa_bkpf-blart.
       WHEN 'KZ' OR 'KB' OR 'ZP'.
         wa_final-lv_AMOUNTOFPAYMENT = wa_wit-wt_qsshh.
@@ -212,8 +212,6 @@ END-OF-SELECTION.
     "APPEND to final table
     APPEND wa_final TO it_final.
   ENDLOOP.
-
-
 
   " Initialize field catalog for ty_final structure
 
@@ -417,7 +415,7 @@ END-OF-SELECTION.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '29'.
-  ls_fcat-fieldname = 'LV_DATEONWHICHTAXDEDUCTED'.
+  ls_fcat-fieldname = 'budat'.
   ls_fcat-tabname   = 'z_final_data'.
   ls_fcat-seltext_m = 'Tax Deduction Date'.
   APPEND ls_fcat TO lt_fcat.
@@ -453,6 +451,7 @@ END-OF-SELECTION.
     EXCEPTIONS
       program_error = 1
       OTHERS        = 2.
+
 
   IF sy-subrc <> 0.
     MESSAGE 'Error in ALV display' TYPE 'E'.
