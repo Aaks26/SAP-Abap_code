@@ -1,0 +1,137 @@
+@AbapCatalog.sqlViewName: 'ZMM_GSTR_VIEW'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'ZMM_Purchase_GSTR'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZMM_Purchase_GSTR 
+ as select from rbkp as H  
+ left outer join rseg as L 
+   on H.bukrs = L.bukrs
+  and H.belnr = L.belnr
+  and H.gjahr = L.gjahr
+ left outer join eipa as PR
+   on L.werks = PR.werks
+  and L.ebeln = PR.ebeln
+  and L.ebelp = PR.ebelp
+ left outer join ekpo as PO 
+   on L.bukrs = PO.bukrs
+  and L.werks = PO.werks
+  and L.ebeln = PO.ebeln
+  and L.ebelp = PO.ebelp
+ left outer join essr as E 
+   on E.ebeln = L.ebeln
+ left outer join ml_esll as M 
+   on E.packno = M.hpackno
+  and E.packno = M.fpackno
+  and E.kzabn = 'X' 
+left outer join j_1bbranch as CG
+        on H.bupla = CG.branch
+        and H.bukrs = CG.bukrs
+left outer join acdoca as A
+on H.bukrs = A.rbukrs
+left outer join t001w as P 
+on P.werks = L.werks
+left outer  join bset as G
+on H.bukrs = G.bukrs
+left outer join bkpf as B 
+ on B.gjahr = H.gjahr
+and B.belnr = H.belnr
+and B.bukrs = H.bukrs
+ 
+ {
+ key    H.bukrs as company_code,
+        CG.gstin as COMPANYGSTNO,
+        CG.branch as BUSINESSPLACE,
+        L.werks as plant,
+        P.name1 as plant_name,
+        H.gjahr as FISCALYEAR,
+        
+           // Invoice Type Calculation using taxcode G.MWSKZ 
+     case 
+        when G.mwskz = 'B1' or G.mwskz = 'B2' or G.mwskz = 'B3' or G.mwskz = 'B4' or
+             G.mwskz = 'C2' or G.mwskz = 'C3' or G.mwskz = 'C4' or
+             G.mwskz = 'D1' or G.mwskz = 'D2' or G.mwskz = 'D3' or G.mwskz = 'D4' or
+             G.mwskz = 'Q1' or G.mwskz = 'Q2' or G.mwskz = 'Q3' or G.mwskz = 'Q4'
+            then 'REGULAR'
+            
+        when G.mwskz = 'K1' or G.mwskz = 'K2' or G.mwskz = 'K3' or G.mwskz = 'K4' or
+             G.mwskz = 'M1' or G.mwskz = 'M2' or G.mwskz = 'M3' or G.mwskz = 'M4' or
+             G.mwskz = 'N1' or G.mwskz = 'N2' or G.mwskz = 'N3' or G.mwskz = 'N4' or
+             G.mwskz = 'P1' or G.mwskz = 'P2' or G.mwskz = 'P3' or G.mwskz = 'P4'
+            then 'RCM'
+
+        when G.mwskz = 'E1' or G.mwskz = 'E2' or G.mwskz = 'E3' or G.mwskz = 'E4' or
+             G.mwskz = 'G1' or G.mwskz = 'G2' or G.mwskz = 'G3' or G.mwskz = 'G4' or
+             G.mwskz = 'U1' or G.mwskz = 'U2' or G.mwskz = 'U3' or G.mwskz = 'U4'
+            then 'ND'
+            
+        else ''
+    end as INVOICETYPE,
+     H.belnr as INVOICENO,
+     
+    // DOCUMENTTYPE
+        case
+            when H.xrech = '' and H.tcode = 'MIR7' then 'KG'
+            when H.xrech = '' and H.tcode <> 'MIR7' then 'RS'
+            else 'Other'
+        end as DOCUMENTTYPE,
+    case
+        when H.xrech = 'KR' then 'FI INVOICE'
+        else case
+            when H.xrech = 'RE' then 'MM INVOICE'
+            else case
+                when H.xrech = 'KG' then 'DEBIT NOTE'
+                else case
+                     when (H.xrech = 'RS' or H.xrech= 'KA') and H.tcode = 'FB08' then 'REVERSE INVOICE'
+                    else case
+                        when H.xrech = 'RS' and H.tcode <> 'FB08' then 'CANCEL INVOICE'
+                        else case
+                            when H.xrech = 'KA' and H.tcode <> 'FB08' then 'VENDOR DOCUMENT'
+                            else H.xrech 
+                        end
+                    end
+                end
+            end
+        end
+    end as DOCUMENTTYPEDESC,
+        L.buzei as  LINENO1,
+        B.belnr as FIINVOICENO,
+        H.xblnr  as BILLNO,
+        H.bldat as BILLDATE,
+        H.budat as POSTINGDATE,
+        H.lifnr as VENDORCODE,
+        H.plc_sup as VENDORSTATECODE,
+        
+    /*case 
+        when H.vgart = 'RS' and H.xrech = '' 
+            then if( L.menge = '0' or l.menge = '1' ) * -1
+        else 
+            if( L.menge = 0, 1, L.menge )
+    end as Quantity,
+    */
+        // Implement Unit Cost Calculation with Coalesce Logic
+        case 
+            when H.vgart = 'RS' and H.xrech = '' then 
+                coalesce(coalesce(PR.preis, M.tbtwr), PO.netpr) * -1
+            else 
+                coalesce(coalesce(PR.preis, M.tbtwr), PO.netpr)
+        end as UnitCost,
+
+        // Amount Calculation
+        case 
+            when H.vgart = 'RS' and H.xrech = '' then 
+                L.wrbtr * -1 
+            else 
+                L.wrbtr 
+        end as Amount,
+
+        // Additional fields from the subquery (ML_ESLL fields)
+        E.ebeln as ORDERNO,
+        M.srvpos as SERVICENO,
+        M.ktext1 as SERVICENAME,
+        M.menge as QTY,
+        M.meins as UOM,
+        M.tbtwr as RATE,
+        M.baswr as AMOUNT_T
+ }
