@@ -95,7 +95,7 @@ case
 
     H.belnr as INVOICENO,
 
-    // Simplified Document Type Calculation
+    // Simplified Document Type Calculation hh
     case
         when H.xrech = '' and H.tcode = 'MIR7' then 'KG'
         when H.xrech = '' and H.tcode <> 'MIR7' then 'RS'
