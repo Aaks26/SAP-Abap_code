@@ -5,74 +5,50 @@
 @EndUserText.label: 'ZMM_Purchase_GSTR'
 @Metadata.ignorePropagatedAnnotations: true
 define view ZMM_Purchase_GSTR 
-with parameters p_cmp :bukrs,
-                p_vendor :lifnr,
-                p_date_from : bldat,
-                p_date_to   : bldat
  as select from rbkp as H  
  left outer join rseg as L 
-  on  L.belnr = H.belnr
-  and L.gjahr = H.gjahr
-  and L.bukrs = H.bukrs
+   on H.bukrs = L.bukrs
+  and H.belnr = L.belnr
+  and H.gjahr = L.gjahr
  left outer join eipa as PR
-  on  L.ebeln = PR.ebeln
+   on L.werks = PR.werks
+  and L.ebeln = PR.ebeln
   and L.ebelp = PR.ebelp
-  and L.werks = PR.werks
  left outer join ekpo as PO 
-  on  PR.ebeln = PO.ebeln
-  and PR.ebelp = PO.ebelp
-  and PR.infnr = PO.infnr
+   on L.bukrs = PO.bukrs
+  and L.werks = PO.werks
+  and L.ebeln = PO.ebeln
+  and L.ebelp = PO.ebelp
  left outer join essr as E 
-  on  PO.ebeln = E.ebeln
-  and PO.ebelp = E.ebelp
+   on E.ebeln = L.ebeln
  left outer join ml_esll as M 
-   on E.packno = M.packno
+   on E.packno = M.hpackno
   and E.packno = M.fpackno
-  and E.packno = M.hpackno
-  and L.packno = M.packno
-  and L.introw = M.introw
+  and E.kzabn = 'X' 
 left outer join j_1bbranch as CG
         on H.bupla = CG.branch
         and H.bukrs = CG.bukrs
 left outer join acdoca as A
-on PO.ebeln = A.ebeln
-and PO.ebelp = A.ebelp
-and CG.bukrs = A.rbukrs
+on H.bukrs = A.rbukrs
 left outer join t001w as P 
-on P.werks = left(A.prctr,4)
-left outer join bset as G
-on A.rbukrs = G.bukrs
-and A.belnr = G.belnr
-and A.gjahr = G.gjahr
+on P.werks = L.werks
+left outer  join bset as G
+on H.bukrs = G.bukrs
 left outer join bkpf as B 
- on B.gjahr = G.gjahr
-and B.belnr = G.belnr
-and B.bukrs = G.bukrs
-left outer join t007v as V
-on G.tax_country = V.aland
-and G.mwskz = V.mwskz
-and G.txjcd = V.txjcd
-and G.stmdt = V.datam
-left outer join lfa1 as A1
-on A1.lifnr = H.lifnr
---and V.datam = A1.erdat
---and V.txjcd = A1.txjcd
-left outer join dfkkbptaxnum as D
-on A1.lifnr = D.partner
-left outer join t005u as T5
-on T5.bland = H.plc_sup
-and T5.land1 = 'IN'
-and T5.spras =  'E'
-{
+ on B.gjahr = H.gjahr
+and B.belnr = H.belnr
+and B.bukrs = H.bukrs
+ 
+ {
  key    H.bukrs as company_code,
         CG.gstin as COMPANYGSTNO,
         CG.branch as BUSINESSPLACE,
         L.werks as plant,
         P.name1 as plant_name,
         H.gjahr as FISCALYEAR,
-
-    // Simplified Invoice Type Calculation
-case 
+        
+           // Invoice Type Calculation using taxcode G.MWSKZ 
+     case 
         when G.mwskz = 'B1' or G.mwskz = 'B2' or G.mwskz = 'B3' or G.mwskz = 'B4' or
              G.mwskz = 'C2' or G.mwskz = 'C3' or G.mwskz = 'C4' or
              G.mwskz = 'D1' or G.mwskz = 'D2' or G.mwskz = 'D3' or G.mwskz = 'D4' or
@@ -92,51 +68,70 @@ case
             
         else ''
     end as INVOICETYPE,
-
-    H.belnr as INVOICENO,
-
-    // Simplified Document Type Calculation hh
-    case
-        when H.xrech = '' and H.tcode = 'MIR7' then 'KG'
-        when H.xrech = '' and H.tcode <> 'MIR7' then 'RS'
-        else 'Other'
-    end as DOCUMENTTYPE,
-
-    // Simplified Document Type Description
+     H.belnr as INVOICENO,
+     
+    // DOCUMENTTYPE
+        case
+            when H.xrech = '' and H.tcode = 'MIR7' then 'KG'
+            when H.xrech = '' and H.tcode <> 'MIR7' then 'RS'
+            else 'Other'
+        end as DOCUMENTTYPE,
     case
         when H.xrech = 'KR' then 'FI INVOICE'
-        when H.xrech = 'RE' then 'MM INVOICE'
-        when H.xrech = 'KG' then 'DEBIT NOTE'
-        when (H.xrech = 'RS' or H.xrech= 'KA') and H.tcode = 'FB08' then 'REVERSE INVOICE'
-        when H.xrech = 'RS' and H.tcode <> 'FB08' then 'CANCEL INVOICE'
-        when H.xrech = 'KA' and H.tcode <> 'FB08' then 'VENDOR DOCUMENT'
-        else H.xrech
+        else case
+            when H.xrech = 'RE' then 'MM INVOICE'
+            else case
+                when H.xrech = 'KG' then 'DEBIT NOTE'
+                else case
+                     when (H.xrech = 'RS' or H.xrech= 'KA') and H.tcode = 'FB08' then 'REVERSE INVOICE'
+                    else case
+                        when H.xrech = 'RS' and H.tcode <> 'FB08' then 'CANCEL INVOICE'
+                        else case
+                            when H.xrech = 'KA' and H.tcode <> 'FB08' then 'VENDOR DOCUMENT'
+                            else H.xrech 
+                        end
+                    end
+                end
+            end
+        end
     end as DOCUMENTTYPEDESC,
+        L.buzei as  LINENO1,
+        B.belnr as FIINVOICENO,
+        H.xblnr  as BILLNO,
+        H.bldat as BILLDATE,
+        H.budat as POSTINGDATE,
+        H.lifnr as VENDORCODE,
+        H.plc_sup as VENDORSTATECODE,
+        
+    /*case 
+        when H.vgart = 'RS' and H.xrech = '' 
+            then if( L.menge = '0' or l.menge = '1' ) * -1
+        else 
+            if( L.menge = 0, 1, L.menge )
+    end as Quantity,
+    */
+        // Implement Unit Cost Calculation with Coalesce Logic
+        case 
+            when H.vgart = 'RS' and H.xrech = '' then 
+                coalesce(coalesce(PR.preis, M.tbtwr), PO.netpr) * -1
+            else 
+                coalesce(coalesce(PR.preis, M.tbtwr), PO.netpr)
+        end as UnitCost,
 
-    L.buzei as LINENO1,
-    B.belnr as FIINVOICENO,
-    B.xblnr_alt as ODNNO,
-    B.xblnr   as  REFERENCE_INVOICE,
-    B.dbblg  as REFERENCE_INVOICE_DATE,
-    L.ebeln as ORDERNO,
-    H.xblnr as BILLNO,
-    H.bldat as BILLDATE,
-    H.budat as POSTINGDATE,
-    H.lifnr as VENDORCODE,
-    A1.name1 as vendor_name,
-    D.taxnum as VENDORGSTNUMBER,
-    // simplified GSTVENDORTYPE  logic
-    case
-    when D.taxnum <> '' then 'REGISTERED'
-    when D.taxnum = '' then 'UNREGISTERED'
-    else D.taxnum  
-    end as GSTVENDORTYPE,
-    
-    H.plc_sup as VENDORSTATECODE,
-    T5.bezei as VENDORSTATE_NAME,
-    L.matnr as  MATERIALCODE 
-    --RB.SAKNR as 
-   }
-where H.bukrs =:p_cmp 
-and   H.lifnr =:p_vendor
-and H.bldat between :p_date_from and :p_date_to
+        // Amount Calculation
+        case 
+            when H.vgart = 'RS' and H.xrech = '' then 
+                L.wrbtr * -1 
+            else 
+                L.wrbtr 
+        end as Amount,
+
+        // Additional fields from the subquery (ML_ESLL fields)
+        E.ebeln as ORDERNO,
+        M.srvpos as SERVICENO,
+        M.ktext1 as SERVICENAME,
+        M.menge as QTY,
+        M.meins as UOM,
+        M.tbtwr as RATE,
+        M.baswr as AMOUNT_T
+ }
