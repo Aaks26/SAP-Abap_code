@@ -6,9 +6,9 @@
 @Metadata.ignorePropagatedAnnotations: true
 define view ZMM_Purchase_GSTR 
 with parameters p_cmp :bukrs,
-                p_vendor :lifnr,
-                p_date_from : bldat,
-                p_date_to   : bldat
+                p_vendor :lifnr
+               -- p_date_from : bldat,
+                -- p_date_to   : bldat
  as select from rbkp as H  
  left outer join rseg as L 
   on  L.belnr = H.belnr
@@ -35,11 +35,12 @@ left outer join j_1bbranch as CG
         on H.bupla = CG.branch
         and H.bukrs = CG.bukrs
 left outer join acdoca as A
-on PO.ebeln = A.ebeln
-and PO.ebelp = A.ebelp
+on PO.ebeln = A.ebeln or PR.ebeln = A.ebeln --or L.ebeln = A.ebeln  
+and PO.ebelp = A.ebelp or PR.ebelp = A.ebelp --or L.ebelp = A.ebelp 
 and CG.bukrs = A.rbukrs
 left outer join t001w as P 
-on P.werks = left(A.prctr,4)
+on P.werks = L.werks
+--on P.werks = left(A.prctr,4)
 left outer join bset as G
 on A.rbukrs = G.bukrs
 and A.belnr = G.belnr
@@ -63,6 +64,28 @@ left outer join t005u as T5
 on T5.bland = H.plc_sup
 and T5.land1 = 'IN'
 and T5.spras =  'E'
+left outer join rbco as RB
+on L.bukrs = RB.bukrs
+and L.belnr = RB.belnr
+and L.gjahr = RB.gjahr
+and L.buzei = RB.buzei
+left outer join anla as FA
+on RB.bukrs = FA.bukrs 
+and RB.anln1=FA.anln1
+left outer join marc as ma
+on L.matnr = ma.matnr
+and L.werks  = ma.werks 
+left  outer join makt as T 
+on ma.matnr = T.matnr
+left outer join t006a as U 
+on PO.meins = U.msehi
+and E.packno = M.hpackno
+and E.packno = M.fpackno
+and U.spras = 'E'
+and E.kzabn='X'
+left outer join t006a as SU
+on M.meins = SU.msehi
+and U.spras = 'E'
 {
  key    H.bukrs as company_code,
         CG.gstin as COMPANYGSTNO,
@@ -70,6 +93,7 @@ and T5.spras =  'E'
         L.werks as plant,
         P.name1 as plant_name,
         H.gjahr as FISCALYEAR,
+        left(A.prctr,4) as plghfht,
 
     // Simplified Invoice Type Calculation
 case 
@@ -90,7 +114,7 @@ case
              G.mwskz = 'U1' or G.mwskz = 'U2' or G.mwskz = 'U3' or G.mwskz = 'U4'
             then 'ND'
             
-        else ''
+        else 'no data '
     end as INVOICETYPE,
 
     H.belnr as INVOICENO,
@@ -103,7 +127,7 @@ case
     end as DOCUMENTTYPE,
 
     // Simplified Document Type Description
-    case
+   case
         when H.xrech = 'KR' then 'FI INVOICE'
         when H.xrech = 'RE' then 'MM INVOICE'
         when H.xrech = 'KG' then 'DEBIT NOTE'
@@ -134,9 +158,37 @@ case
     
     H.plc_sup as VENDORSTATECODE,
     T5.bezei as VENDORSTATE_NAME,
-    L.matnr as  MATERIALCODE 
-    --RB.SAKNR as 
+   -- L.matnr as  MATERIALCODE ,
+case
+    when L.matnr is not null then 'GOODS'
+    when RB.anln1 is not null then 'CAPITAL GOODS'
+    when RB.saknr is not null and M.srvpos is not null then 'SERVICE'
+    else 'no data'
+end as PURCHASETYPE,
+
+// simplified TYPES
+case 
+    when L.matnr <> '' then 'ITEM'
+    when RB.anln1 <> '' then 'FIXED ASSET'
+    when RB.saknr <> '' and RB.anln1 = '' or M.srvpos <> '' then 'GL'
+    else ''
+end as TYPE,
+
+//DESCRIPTION
+    case 
+    when L.matnr is not null then COALESCE(T.maktx, '')
+    when RB.saknr is not null and (RB.anln1 is null or M.srvpos is not null) then '' --COALESCE(G.TXT50, '')
+    when RB.anln1 is not null then COALESCE(FA.mcoa1, '')
+    else ''
+end as DESCRIPTION,
+
+U.msehl as UOM,
+SU.msehl as UOM_su
+
+
+    
    }
 where H.bukrs =:p_cmp 
 and   H.lifnr =:p_vendor
-and H.bldat between :p_date_from and :p_date_to
+--and H.bldat between :p_date_from and :p_date_to
+--and E.kzabn='X'
