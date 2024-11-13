@@ -44,6 +44,10 @@ TYPES : BEGIN OF ty_bnka,
 
 TYPES : BEGIN OF ty_payr,
           zbukr TYPE dzbukr, " c code
+          hbkid TYPE hbkid,
+          hktid TYPE hktid,
+          chect TYPE chect,
+          checf TYPE checf,
           voidr TYPE voidr , "NOvoidCHEQUE,
         END OF ty_payr.
 
@@ -78,7 +82,7 @@ TYPES : BEGIN OF ty_final,
           lv_checf1 TYPE i, "checkinstock,
           check     TYPE pcec-checf, "CHECKtype
           voidr     TYPE payr-voidr , "NOvoidCHEQUE,
-
+          lv_reason TYPE char50,
         END OF ty_final.
 
 
@@ -150,6 +154,18 @@ START-OF-SELECTION.
       WHERE bukrs  = it_t012k-bukrs .
   ENDIF.
 
+**********************
+  IF IT_pcec IS NOT INITIAL.
+    SELECT zbukr hbkid hktid chect checf voidr
+      INTO TABLE it_payr
+      FROM payr
+      FOR ALL ENTRIES IN it_pcec
+      WHERE zbukr = it_pcec-zbukr
+      AND hbkid = it_pcec-hbkid
+      AND hktid = it_pcec-hktid
+      AND chect = it_pcec-chect.
+  ENDIF.
+
 end-of-SELECTION.
 
 **********************************************************************
@@ -179,26 +195,69 @@ end-of-SELECTION.
 *    wa_final-banks = wa_bnka-banks.
     wa_final-bankl = wa_bnka-bankl.
     wa_final-banka = wa_bnka-banka.
+
+
+    READ TABLE it_payr INTO wa_payr with key chect = wa_pcec-chect.
+     CASE wa_payr-voidr.
+  WHEN '01'.
+    wa_final-lv_reason = 'Test Printout'.
+  WHEN '02'.
+    wa_final-lv_reason = 'Page Overflow'.
+  WHEN '03'.
+    wa_final-lv_reason = 'Form Closing'.
+  WHEN '04'.
+    wa_final-lv_reason = 'Ripped during printing'.
+  WHEN '05'.
+    wa_final-lv_reason = 'Printed incorrectly'.
+  WHEN '06'.
+    wa_final-lv_reason = 'Destroyed/unusable'.
+  WHEN '07'.
+    wa_final-lv_reason = 'Stolen'.
+  WHEN '08'.
+    wa_final-lv_reason = 'Incorrect lot inserted'.
+  WHEN '09'.
+    wa_final-lv_reason = 'Reversed check payment'.
+  WHEN '10'.
+    wa_final-lv_reason = 'Check voided after printing'.
+  WHEN '11'.
+    wa_final-lv_reason = 'Use for Test Printing'.
+  WHEN '12'.
+    wa_final-lv_reason = 'Cancel cheque given to Customer for Bank details'.
+  WHEN '13'.
+    wa_final-lv_reason = 'Cheque use for Bulk NEFT/RTGS Purpose'.
+  WHEN '14'.
+    wa_final-lv_reason = 'Blank sign Cheque given to bank for Loan'.
+  WHEN '15'.
+    wa_final-lv_reason = 'Cheque void due to overdate'.
+  WHEN '16'.
+    wa_final-lv_reason = 'Cheque void due to NEFT/RTGS return'.
+  WHEN '17'.
+    wa_final-lv_reason = 'Cheque void due to Cheque return by bank'.
+  WHEN OTHERS.
+    wa_final-lv_reason = ''.
+ENDCASE.
+  " append the data to final
     APPEND wa_final TO it_final.
   ENDLOOP.
 
-LOOP AT it_final INTO wa_final.
-  " Logic for lv_checf1 calculation
-    IF wa_final-checl is INITIAL.
-       wa_final-lv_checf1  = wa_final-chect - wa_final-checf  . " From cheque to cheque
+  LOOP AT it_final INTO wa_final.
+    " Logic for lv_checf1 calculation
+    IF wa_final-checl IS INITIAL.
+      wa_final-lv_checf1  = wa_final-chect - wa_final-checf  . " From cheque to cheque
     ELSE.
       wa_final-lv_checf1 = wa_final-checl - wa_final-chect. " From cheque to last use
     ENDIF.
 
-  " Modify the it_final table with updated wa_final
-  MODIFY it_final FROM wa_final.
-ENDLOOP.
+    " Modify the it_final table with updated wa_final
+    MODIFY it_final FROM wa_final.
+  ENDLOOP.
 
 ******************************************************************************
   CLEAR ls_fieldcat.
 
   " Field 1: Company Code
   ls_fieldcat-col_pos  = 1.
+  ls_fieldcat-hotspot    = 'X'.
   ls_fieldcat-fieldname = 'zbukr'.
   ls_fieldcat-tabname   = 'IT_FINAL'.
   ls_fieldcat-seltext_l = 'Company Code'.
@@ -316,15 +375,15 @@ ENDLOOP.
   ls_fieldcat-seltext_l = 'No Void Cheque'.
   APPEND ls_fieldcat TO lt_fieldcat.
   CLEAR ls_fieldcat.
-*
-*  " Field 16: Cheque Type
-*  ls_fieldcat-col_pos  = 16.
-*  ls_fieldcat-fieldname = 'checf'.
-*  ls_fieldcat-tabname   = 'IT_FINAL'.
-*  ls_fieldcat-seltext_l = 'Cheque Type'.
-*  APPEND ls_fieldcat TO lt_fieldcat.
-*  CLEAR ls_fieldcat.
-*
+
+  " Field 16: Cheque Type
+  ls_fieldcat-col_pos  = 16.
+  ls_fieldcat-fieldname = 'lv_reason'.
+  ls_fieldcat-tabname   = 'IT_FINAL'.
+  ls_fieldcat-seltext_l = 'VOID_REASON'.
+  APPEND ls_fieldcat TO lt_fieldcat.
+  CLEAR ls_fieldcat.
+
 *   "Field 17: Bank Status
 *  ls_fieldcat-col_pos  = 17.
 *  ls_fieldcat-fieldname = 'BANKSTATUS'.
