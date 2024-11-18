@@ -1,0 +1,132 @@
+@AbapCatalog.sqlViewName: 'ZCASHBAL_VIEW'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Z_Cash_Balance_Corp'
+@Metadata.ignorePropagatedAnnotations: true
+define view Z_Cash_Balance_Corp
+  with parameters
+    p_from_date : abap.dats,
+    p_to_date   : abap.dats
+  as select from tcj_c_journals as C
+  
+    left outer join tcj_cj_names as N
+      on C.mandt = N.mandt
+      and C.comp_code = N.comp_code
+      and C.cajo_number = N.cajo_number
+
+    left outer join skat as G
+      on C.gl_account = G.saknr
+      and G.ktopl = 'LGIN'
+
+    left outer join acdoca as OP
+      on C.comp_code = OP.rbukrs
+      and C.gl_account = OP.racct
+      and C.cajo_number = left(OP.aworg, 4)
+      and OP.budat < $parameters.p_from_date
+      and OP.belnr not like 'B%'
+
+    left outer join acdoca as MG
+      on C.comp_code = MG.rbukrs
+      and C.gl_account = MG.racct
+      and C.cajo_number = left(MG.aworg, 4)
+      and MG.budat between $parameters.p_from_date and $parameters.p_to_date
+      and MG.belnr not like 'B%'
+
+    left outer join t001 as T
+      on T.bukrs = C.comp_code
+
+    left outer join adrc as A
+      on T.adrnr = A.addrnumber
+      /*
+      left outer join ACDOCA as OP
+      ON C.COMP_CODE = OP.RBUKRS
+       AND C.GL_ACCOUNT = OP.GLACC 
+       and C.CAJO_NUMBER = OP.CASHJOURNAL
+       */
+{
+    // Company Code Mapping
+    case
+      when C.comp_code = 'I1' and C.cajo_number = 'C012' then 'I5'
+      when C.comp_code = 'I4' and C.cajo_number = 'C012' then 'I6'
+      when C.comp_code = 'I5' and C.cajo_number = 'C011' then 'I9A'
+      when C.comp_code = 'I6' and C.cajo_number = 'C011' then 'I9B'
+      else C.comp_code
+    end as company,
+
+    // Company Short Name
+    case
+      when C.comp_code = 'I1' and C.cajo_number = 'C012' then 'GRL ABHVA LAND'
+      when C.comp_code = 'I4' and C.cajo_number = 'C012' then 'SRL ABHVA LAND'
+      else T.butxt
+    end as company_shortname,
+
+    // Company Full Name
+    case
+      when C.comp_code = 'I1' and C.cajo_number = 'C012' then 'GRL ABHVA LAND'
+      when C.comp_code = 'I4' and C.cajo_number = 'C012' then 'SRL ABHVA LAND'
+      else concat(concat(A.name1, ' '), A.name2)
+    end as company_fullname,
+
+    // Cash Journal Information
+    C.cajo_number as cash_journal,
+    N.cajo_name as cash_journal_name,
+    C.gl_account as gl_account,
+    G.txt50 as gl_name,
+    
+    // OPNAMOUNT
+    case  
+    when MG.rbukrs = C.comp_code and C.gl_account = MG.racct and MG.belnr <> 'B%' and MG.budat = $parameters.p_from_date or MG.budat =  $parameters.p_to_date
+    then sum(MG.hsl)
+    else '00'
+    end as OPNAMOUNT,
+    
+    // CASH JOURNAL
+    case 
+    when MG.rbukrs = C.comp_code and C.gl_account = MG.racct and  MG.belnr <> 'B%' and MG.budat = $parameters.p_from_date or MG.budat =  $parameters.p_to_date
+    then left(MG.aworg,4)
+    else '00' 
+    end as CASHJOURNAL,
+/*
+// Opening Credit Amount
+Case 
+ when  mg.RBUKRS = c.COMP_CODE and C.GL_ACCOUNT = mg.GLACC --and C.CAJO_NUMBER = mg.CASHJOURNAL
+ then mg.rbukrs 
+ when C.CAJO_NUMBER = 'C011' or C.CAJO_NUMBER = 'C0C1' or C.CAJO_NUMBER ='C012' then MG.OPNAMOUNT
+ else '0.00'
+ end as opnccamt,
+
+// Current Credit Amount
+ifnull(sum(MG.hsl), 0) as ccamt,
+
+// Credit Balance
+ifnull(max(OP.hsl), 0) + ifnull(sum(MG.hsl), 0) as ccbalance,
+
+// Opening Safe Amount
+ifnull(max(OP.hsl), 0) as opnsfamt,
+
+// Safe Amount
+ifnull(sum(MG.hsl), 0) as sfamt,
+
+// Safe Balance
+ifnull(max(OP.hsl), 0) + ifnull(sum(MG.hsl), 0) as sfbalance,
+*/
+
+    // Parameter Dates
+    $parameters.p_from_date as fromdate,
+    $parameters.p_to_date as todate
+}
+
+where C.currency = 'INR'
+  and C.gl_account = '0000210010' or  C.gl_account =  '0000210020' or C.gl_account =  '0000210012' or C.gl_account =  '0000210011'
+  and C.cajo_number <> 'S012'
+  and  C.comp_code <> '13' or C.comp_code <> 'CE' or C.comp_code <> '81' or C.comp_code <> '82'
+  group by
+  C.COMP_CODE,
+  C.CAJO_NUMBER,
+  N.CAJO_NAME,
+  C.GL_ACCOUNT,
+  G.TXT50,
+  CO.COMPANYSHORTNAME,
+  CO.COMPANYNAME
+order by C.COMP_CODE;

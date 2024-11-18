@@ -1,5 +1,5 @@
 *&---------------------------------------------------------------------*
-*& Report Z_CHEQUE_STOCK   "hello"
+*& Report Z_CHEQUE_STOCK
 *&---------------------------------------------------------------------*
 *&
 *&---------------------------------------------------------------------*
@@ -50,8 +50,6 @@ TYPES : BEGIN OF ty_payr,
           checf TYPE checf,
           voidr TYPE voidr , "NOvoidCHEQUE,
         END OF ty_payr.
-
-
 
 TYPES : BEGIN OF ty_T012T,
           bukrs TYPE bukrs, " COMPANY
