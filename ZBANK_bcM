@@ -1,0 +1,180 @@
+*&---------------------------------------------------------------------*
+*& Report ZBANK_BCM
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zbank_bcm.
+
+
+TABLES :bnk_batch_item,bnk_batch_header.
+**************** INPUT SCREEN ******************************************
+SELECT-OPTIONS : s_ZBUKR FOR bnk_batch_header-zbukr,
+                 s_LAUO FOR bnk_batch_item-laufi_o,
+                 s_batch  FOR bnk_batch_header-Batch_no ,
+                 s_LAUF FOR bnk_batch_header-laufd.
+
+TYPES :BEGIN OF bnk_batch_header,
+         guid      TYPE bnk_com_btch_guid,
+         zbukr     TYPE dzbukr,
+         batch_no  TYPE bnk_com_btch_no,     " batch number
+         laufd     TYPE bnk_com_btch_mrge_dat,
+
+         batch_sum TYPE bnk_com_btch_amount, " batch SUM
+         rule_id   TYPE bnk_com_btch_rule_id,  " rule ID
+         item_cnt  TYPE bnk_com_btch_ctr, " item number of paymnet
+         hbkid     TYPE hbkid, " bank ID
+       END OF bnk_batch_header.
+
+TYPES : BEGIN OF bnk_batch_item,
+          zbukr      TYPE dzbukr,
+          batch_no   TYPE bnk_com_btch_no,
+          laufd     TYPE bnk_com_btch_mrge_dat,
+          laufi_o    TYPE laufi,
+          item_no    TYPE bnk_com_btch_cnt,
+          lifnr      TYPE lifnr,    "party name
+          vblnr      TYPE vblnr, "pay no
+          amt_rulecu TYPE bnk_com_pymntamt_in_rulcu, " amount
+          kunnr      TYPE kunnr,
+        END OF bnk_batch_item.
+
+TYPES : BEGIN OF t001,
+          bukrs TYPE bukrs,
+          butxt TYPE butxt,
+          adrnr TYPE adrnr,
+        END OF t001.
+
+TYPES : BEGIN OF adrc,
+          addrnumber TYPE ad_addrnum,
+          name1      TYPE ad_name1,
+          name2      TYPE ad_name2,
+        END OF adrc.
+
+TYPES : BEGIN OF tbnk_rule_t,
+          rule_id TYPE bnk_com_rule_id,
+          text    TYPE bnk_com_rule_id_desc,
+        END OF tbnk_rule_t.
+
+TYPES : BEGIN OF bnka,
+          banka TYPE banka,
+          bankl TYPE bankk,
+          bnklz TYPE bankl,
+        END OF bnka.
+TYPES : BEGIN OF reguh,
+          laufd TYPE laufd,
+          laufi TYPE laufi,
+          hbkid TYPE hbkid,
+          zbukr TYPE dzbukr,
+          ubnky TYPE ubnky,
+          ubknt TYPE ubknt,
+          vblnr TYPE vblnr,
+          lifnr TYPE lifnr,
+          kunnr TYPE kunnr,
+          XVORL TYPE XVORL,
+        END OF reguh.
+
+TYPES : BEGIN OF acdoca,
+          rbukrs TYPE bukrs,
+          belnr  TYPE belnr_d,
+          prctr  TYPE prctr,
+          blart  TYPE blart,
+          netdt  TYPE netdt,
+          awref  TYPE awref,
+          hsl    TYPE fins_vhcur12,
+          lifnr  TYPE lifnr,
+          kunnr  TYPE kunnr,
+          gjahr  TYPE gjahr,
+          augdt  TYPE augdt,
+          augbl  TYPE augbl,
+        END OF acdoca.
+
+DATA :it_bnkH   TYPE TABLE OF bnk_batch_header,
+      wa_bnkH   TYPE bnk_batch_header,
+      it_bnkI   TYPE TABLE OF bnk_batch_item,
+      wa_bnki   TYPE bnk_batch_item,
+      it_t001   TYPE TABLE OF t001,
+      wa_t001   TYPE t001,
+      it_adrc   TYPE TABLE OF adrc,
+      wa_adrc   TYPE adrc,
+      it_tt     TYPE TABLE  OF tbnk_rule_t,
+      wa_tt     TYPE tbnk_rule_t,
+      it_bnka   TYPE TABLE OF bnka,
+      wa_bnka   TYPE bnka,
+      it_reguh  TYPE TABLE OF reguh,
+      wa_reguh  TYPE reguh,
+      it_acdoca TYPE TABLE  OF acdoca,
+      wa_acdoca TYPE acdoca.
+
+START-OF-SELECTION.
+
+  SELECT guid zbukr batch_no laufd batch_sum rule_id item_cnt hbkid
+    INTO TABLE it_bnkh
+    FROM bnk_batch_header
+    WHERE zbukr IN s_zbukr
+    AND batch_no IN s_batch
+    AND laufd IN s_LAUF.
+
+  SELECT zbukr BATCH_NO laufd laufi_o item_no lifnr vblnr amt_rulecu
+    INTO TABLE it_bnkI
+    FROM bnk_batch_item
+    FOR ALL ENTRIES IN it_bnkh
+    WHERE BATCH_NO = it_bnkh-BATCH_NO and zbukr = it_bnkh-zbukr AND laufd = it_bnkh-laufd .
+
+  SELECT bukrs butxt  adrnr
+    INTO TABLE it_t001
+    FROM t001
+    FOR ALL ENTRIES IN it_bnkh
+    WHERE bukrs = it_bnkh-zbukr.
+
+  IF it_t001 IS NOT INITIAL.
+    SELECT addrnumber name1 name2
+      INTO TABLE it_adrc
+      FROM adrc
+      FOR ALL ENTRIES IN it_t001
+      WHERE addrnumber = it_t001-adrnr.
+  ENDIF.
+
+  IF it_bnkh IS NOT INITIAL.
+    SELECT rule_id text
+      INTO TABLE it_tt
+      FROM tbnk_rule_t
+      FOR ALL ENTRIES IN it_bnkh
+      WHERE rule_id = it_bnkh-rule_id.
+  ENDIF.
+
+  IF it_bnki IS NOT INITIAL.
+    SELECT laufd laufi hbkid zbukr ubnky ubknt  vblnr lifnr XVORL
+      INTO TABLE it_reguh
+      FROM reguh
+      FOR ALL ENTRIES IN it_bnki
+      WHERE laufd = it_bnki-laufd
+      AND laufi = it_bnki-laufi_o  "or laufi in s_LAUO
+      AND zbukr = it_bnki-zbukr
+      AND lifnr = it_bnki-lifnr
+      and XVORL <> 'X'.
+  ENDIF.
+
+  SELECT  banka bankl bnklz
+    INTO TABLE it_bnka
+    FROM bnka
+    FOR ALL ENTRIES IN it_reguh
+    WHERE bankl = it_reguh-ubnky.
+
+  IF  it_reguh IS NOT INITIAL.
+    SELECT  rbukrs belnr prctr blart netdt awref hsl lifnr kunnr gjahr augdt augbl
+      FROM Acdoca
+      INTO TABLE it_ACDOCA
+      FOR ALL ENTRIES IN it_reguh
+      WHERE rbukrs = it_reguh-zbukr
+     AND lifnr = it_reguh-lifnr
+      AND augdt = it_reguh-laufd
+      AND blart IN ('RE' , 'AB').
+  ENDIF.
+
+  cl_demo_output=>display( it_bnkh ).
+  cl_demo_output=>display( it_bnkI ).
+  cl_demo_output=>display( it_t001 ).
+  cl_demo_output=>display( it_adrc ).
+  cl_demo_output=>display( it_tt ).
+  cl_demo_output=>display( it_reguh ).
+  cl_demo_output=>display( it_bnka ).
+  cl_demo_output=>display( it_acdoca ).
