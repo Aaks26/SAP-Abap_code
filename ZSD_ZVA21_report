@@ -1,0 +1,94 @@
+*&---------------------------------------------------------------------*
+*& Report ZSD_ZVA21_APP
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zsd_zva21_report_cp.
+
+INCLUDE ZSD_ZVA21_RPT_TOP_CP.
+*INCLUDE zsd_zva21_rpt_top.
+
+INCLUDE ZSD_ZVA21_RPT_SS_CP.
+*INCLUDE zsd_zva21_rpt_ss.
+
+INCLUDE ZSD_ZVA21_RPT_SUB_CP.
+*INCLUDE zsd_zva21_rpt_sub.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_stat-low.
+  TYPES: BEGIN OF ty_stat,
+           zstatus TYPE ZSTATUS_H,
+         END OF ty_stat.
+  DATA:lt_stat TYPE STANDARD TABLE OF ty_stat,
+       ls_stat TYPE ty_stat.
+
+
+  ls_stat-zstatus = 'APPROVED'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = 'REJECTED'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = 'PPROVED'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = 'STD'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = 'NEG'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = '0'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = '1'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = '2'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = '3'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  ls_stat-zstatus = '4'.
+  APPEND ls_stat TO lt_stat.
+  CLEAR ls_stat.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'S_STAT-LOW'
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = 'S_STAT-LOW'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_stat
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF sy-subrc EQ 0.
+
+  ENDIF.
+
+
+
+START-OF-SELECTION.
+  PERFORM get_data.
+  IF gt_final[] IS INITIAL.
+    MESSAGE s001(38) DISPLAY LIKE 'E' WITH 'No Data found'.    "No Data found for entered data'
+  ELSE.
+    PERFORM get_structure.
+    PERFORM create_dynamic_itab.
+    PERFORM get_events.
+    PERFORM sub_comment_build USING t_list_top_of_page.
+    PERFORM write_out.
+  ENDIF.

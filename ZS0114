@@ -11,45 +11,74 @@ INCLUDE Zinclude_s0114_top.
 
 
 
+
 START-OF-SELECTION.
+*********************************************************************************
+*  SELECT rbukrs prctr belnr gjahr
+*     INTO TABLE it_acdoca
+*     FROM acdoca
+*     WHERE rbukrs IN s_bukrs
+*     AND gjahr IN s_gjahr
+*     AND bldat IN s_CPUDT.
 
-  " Step 1: Fetch data into `it_wit` table
-  SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh wt_acco wt_wtexmn gjahr
-    INTO TABLE it_wit
-    FROM with_item
-    WHERE bukrs IN s_bukrs AND gjahr IN s_gjahr.
+*  SELECT bukrs belnr gjahr bldat cpudt blart budat
+*    INTO TABLE it_bkpf
+*    FROM bkpf
+*    FOR ALL ENTRIES IN it_acdoca
+*    WHERE
+*bukrs = it_Acdoca-rbukrs
+*    AND belnr = it_acdoca-belnr
+*    AND gjahr = it_acdoca-gjahr.
+*******************************************************************************
+  SELECT bukrs belnr gjahr bldat cpudt blart budat
+    INTO TABLE it_bkpf
+      FROM bkpf
+       WHERE bukrs IN s_bukrs
+       AND gjahr IN s_gjahr
+       AND budat IN s_budat.
 
-  IF it_wit IS NOT INITIAL.
+  SELECT rbukrs prctr belnr gjahr
+   INTO TABLE it_acdoca
+   FROM acdoca
+    FOR ALL ENTRIES IN it_bkpf
+WHERE rbukrs = it_bkpf-bukrs
+  AND belnr = it_bkpf-belnr
+  AND gjahr = it_bkpf-gjahr.
+**************************************************************************
 
-    " Step 2: Fetch data into `it_acdoca` based on `it_wit`
-    SELECT rbukrs prctr belnr gjahr
-      INTO TABLE it_acdoca
-      FROM acdoca
-      FOR ALL ENTRIES IN it_wit
-      WHERE rbukrs = it_wit-bukrs
-        AND gjahr = it_wit-gjahr
-        AND belnr = it_wit-belnr.
+*
+*  IF it_bkpf IS NOT INITIAL.
+*    SELECT rbukrs prctr belnr gjahr
+*      INTO TABLE it_acdoca
+*      FROM acdoca
+*      FOR ALL ENTRIES IN it_bkpf
+*      WHERE rbukrs = it_bkpf-bukrs
+*        AND gjahr  = it_bkpf-gjahr
+*       AND belnr = it_bkpf-belnr.
+*  ENDIF.
 
-    " Step 3: Fetch plant details from `t001w` table
+  IF it_Acdoca  IS NOT INITIAL.
+    SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh wt_acco wt_wtexmn gjahr
+      INTO TABLE it_wit
+      FROM with_item
+      FOR ALL ENTRIES IN it_Acdoca
+      WHERE bukrs = it_acdoca-rbukrs
+      AND belnr = it_acdoca-belnr
+      AND gjahr = it_acdoca-gjahr.
+
+  ENDIF.
+
+  IF it_Acdoca IS NOT INITIAL.
     SELECT werks name1
       INTO TABLE it_t001w
       FROM t001w
       FOR ALL ENTRIES IN it_acdoca
       WHERE werks = it_acdoca-prctr+0(4).
+  ENDIF.
 
-    " Step 4: Fetch data from `bkpf` based on `it_acdoca`
-    SELECT bukrs belnr gjahr bldat cpudt blart budat
-      INTO TABLE it_bkpf
-      FROM bkpf
-      FOR ALL ENTRIES IN it_acdoca
-      WHERE belnr = it_acdoca-belnr
-        AND bukrs = it_acdoca-rbukrs
-        AND gjahr = it_acdoca-gjahr
-        AND bukrs IN s_bukrs
-        AND gjahr IN s_gjahr
-        AND bldat IN s_bldat.
 
-    " Step 5: Fetch withholding tax codes from `t059z`
+  IF it_wit IS NOT INITIAL.
+
     SELECT witht wt_withcd qscod
       INTO TABLE it_t059z
       FROM t059z
@@ -57,38 +86,47 @@ START-OF-SELECTION.
       WHERE witht = it_wit-witht
         AND wt_withcd = it_wit-wt_withcd.
 
-    " Step 6: Fetch text descriptions for withholding types from `t059d`
+  ENDIF.
+  IF it_t059z IS NOT INITIAL.
+
     SELECT land1 witht rctxt
       INTO TABLE it_t059d
       FROM t059d
       FOR ALL ENTRIES IN it_t059z
       WHERE witht = it_t059z-witht.
 
-    " Step 7: Fetch vendor data from `lfa1`
+  ENDIF.
+  IF it_wit IS NOT INITIAL.
     SELECT land1 j_1ipanno lifnr adrnr stras regio
       INTO TABLE it_lfa1
       FROM lfa1
       FOR ALL ENTRIES IN it_wit
       WHERE lifnr = it_wit-wt_acco.
-
-    " Step 8: Fetch additional vendor data from `but000`, `adrc`, `t005u`, and `adr6`
+  ENDIF.
+  IF  it_lfa1 IS NOT INITIAL.
     SELECT partner name_org1 name_org2 name_org3
       INTO TABLE it_but000
       FROM but000
       FOR ALL ENTRIES IN it_lfa1
       WHERE partner = it_lfa1-lifnr.
-
+  ENDIF.
+  IF it_lfa1 IS NOT INITIAL.
     SELECT addrnumber str_suppl1 str_suppl2 str_suppl3 street post_code1
       INTO TABLE it_adrc
       FROM adrc
       FOR ALL ENTRIES IN it_lfa1
       WHERE addrnumber = it_lfa1-adrnr.
+  ENDIF.
+  IF it_lfa1 IS NOT INITIAL.
 
     SELECT bland bezei
       INTO TABLE it_t005u
       FROM t005u
       FOR ALL ENTRIES IN it_lfa1
       WHERE bland = it_lfa1-regio.
+
+  ENDIF.
+  IF it_lfa1 IS NOT INITIAL.
 
     SELECT addrnumber smtp_srch
       INTO TABLE it_adr6
@@ -101,11 +139,12 @@ START-OF-SELECTION.
 END-OF-SELECTION.
 
 
-LOOP AT it_wit INTO wa_wit.
+  LOOP AT it_wit INTO wa_wit.
     wa_final-bukrs = wa_wit-bukrs.
     wa_final-belnr  = wa_wit-belnr.
     wa_final-reason  = wa_wit-wt_wtexmn.
     wa_final-certificatenumber  = wa_wit-wt_wtexmn.
+    wa_final-gjahr = wa_wit-gjahr.
 
     CASE wa_wit-wt_amnman.
       WHEN 'X'.
@@ -120,8 +159,9 @@ LOOP AT it_wit INTO wa_wit.
 
     READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_acdoca-prctr+0(4).
     wa_final-name1 = wa_t001w-name1.
+    " wa_final-werks = wa_t001w-werks.
 
-    READ TABLE it_bkpf INTO wa_bkpf WITH  KEY  belnr = wa_acdoca-belnr  bukrs = wa_acdoca-rbukrs gjahr = wa_acdoca-gjahr.
+    READ TABLE it_bkpf INTO wa_bkpf WITH  KEY  belnr = wa_wit-belnr  bukrs = wa_wit-bukrs gjahr = wa_wit-gjahr.
     CASE wa_bkpf-blart.
       WHEN 'KZ' OR 'KB' OR 'ZP'.
         wa_final-lv_AMOUNTOFPAYMENT = wa_wit-wt_qsshh.
@@ -142,7 +182,7 @@ LOOP AT it_wit INTO wa_wit.
       WHEN OTHERS.
         wa_final-lv_TOTALTAXDEPOSITED = wa_wit-wt_qbshh * 1.
     ENDCASE.
-    wa_final-gjahr = wa_bkpf-gjahr.
+    "wa_final-gjahr = wa_bkpf-gjahr.
     wa_final-bldat = wa_bkpf-bldat.
     wa_final-cpudt = wa_bkpf-cpudt.
     wa_final-budat = wa_bkpf-budat.
@@ -224,7 +264,7 @@ LOOP AT it_wit INTO wa_wit.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '2'.
-  ls_fcat-fieldname = 'LV_PLANT'.
+  ls_fcat-fieldname = 'werks'.
   ls_fcat-tabname   = 'z_final_data'.
   ls_fcat-seltext_m = 'Plant'.
   APPEND ls_fcat TO lt_fcat.
@@ -240,7 +280,7 @@ LOOP AT it_wit INTO wa_wit.
   ls_fcat-col_pos   = '4'.
   ls_fcat-fieldname = 'BELNR'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Document Number'.
+  ls_fcat-seltext_m = 'INVOICE NO'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -282,7 +322,7 @@ LOOP AT it_wit INTO wa_wit.
   ls_fcat-col_pos   = '10'.
   ls_fcat-fieldname = 'RCTXT'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Reason Text'.
+  ls_fcat-seltext_m = 'DEDUCTEE CODE'.
   APPEND ls_fcat TO lt_fcat.
 
   " Similarly, continue for the rest of the fields in ty_final structure
@@ -291,21 +331,21 @@ LOOP AT it_wit INTO wa_wit.
   ls_fcat-col_pos   = '11'.
   ls_fcat-fieldname = 'J_1IPANNO'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'PAN Number'.
+  ls_fcat-seltext_m = 'PERMANENT ACCOUNT NUMBER OF DEDUCTEE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '12'.
   ls_fcat-fieldname = 'LV_DRFFNO'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Draft Reference Number'.
+  ls_fcat-seltext_m = 'DEDUCTEE REF NO PAN REF NO'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '13'.
   ls_fcat-fieldname = 'LV_NAME'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Vendor Name'.
+  ls_fcat-seltext_m = 'NAME OF DEDUCTEE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -340,14 +380,14 @@ LOOP AT it_wit INTO wa_wit.
   ls_fcat-col_pos   = '18'.
   ls_fcat-fieldname = 'BLAND'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Region'.
+  ls_fcat-seltext_m = 'DEDUCTEE STATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '19'.
   ls_fcat-fieldname = 'POST_CODE1'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Postal Code'.
+  ls_fcat-seltext_m = 'DEDUCTEE PIN'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -361,7 +401,7 @@ LOOP AT it_wit INTO wa_wit.
   ls_fcat-col_pos   = '21'.
   ls_fcat-fieldname = 'BUDAT'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Posting Date'.
+  ls_fcat-seltext_m = 'DATE ON WHICH AMOUNT PAID CREDITED'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -382,7 +422,7 @@ LOOP AT it_wit INTO wa_wit.
   ls_fcat-col_pos   = '24'.
   ls_fcat-fieldname = 'LV_HEALTHANDEDUCATIONCESSRATE'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Education Cess Rate'.
+  ls_fcat-seltext_m = 'HEALTH & EDUCATIONCESS RATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -403,7 +443,7 @@ LOOP AT it_wit INTO wa_wit.
   ls_fcat-col_pos   = '27'.
   ls_fcat-fieldname = 'LV_HEALTHANDEDUCATIONCESSAMT'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Education Cess Amount'.
+  ls_fcat-seltext_m = 'HEALTH & EDUCATIONCESS Amount'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -446,6 +486,7 @@ LOOP AT it_wit INTO wa_wit.
   CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
     EXPORTING
       it_fieldcat   = lt_fcat
+*     i_save        = 'A'        " Optional, saves the ALV layout
     TABLES
       t_outtab      = it_final
     EXCEPTIONS
