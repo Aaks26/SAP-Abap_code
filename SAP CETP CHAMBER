@@ -3,67 +3,25 @@
 *&---------------------------------------------------------------------*
 *&
 *&---------------------------------------------------------------------*
-REPORT zs0197.
+REPORT ZS0197.
+************************AJ******************************04-12-2024 Aakash j patel
+TABLES :knvv ,t001w,vbap,konp,t188t,t189t.
+*****************************************************
+INCLUDE ZS0197_TOP.
+INCLUDE ZS0197_SS.
 
-************SELECTION SCREEN********************************************
-PARAMETERS : P_VKORG  TYPE knvv-VKORG OBLIGATORY.
-
-************************************************************************
-*--- Declaration of individual table types (structures) ---
-TYPES:
-  BEGIN OF ty_knvv,
-    vkorg TYPE vkorg,   " Plant code
-    kunnr TYPE kunnr,   " Customer code
-    vsort TYPE vsort,   " Item proposal number
-  END OF ty_knvv,
-
-  BEGIN OF ty_t001w,
-    werks TYPE werks,
-    name1 TYPE name1,    " Plant name
-  END OF ty_t001w,
-
-  BEGIN OF ty_vbap,
-    matnr      TYPE matnr,     " Material Number
-    arktx      TYPE arktx,     " Material name
-    zmeng      TYPE DZMENG,     " Quantity
-  END OF ty_vbap,
-
-  BEGIN OF ty_konp,
-    knumh TYPE knumh,          " Condition Record Number
-    kbetr TYPE kbetr,          " Condition Amount
-  END OF ty_konp.
-
-*--- Declaration of the final structure with all fields ---
-TYPES:
-  BEGIN OF ty_final,
-    plant_code      TYPE vkorg,      " Plant code
-    plant_name      TYPE name1,      " Plant name
-    customer_code   TYPE kunnr,      " Customer code
-    customer_name   TYPE name1,      " Customer name
-    item_proposal_no TYPE vsort,     " Item proposal number
-    material_code   TYPE matnr,      " Material Number
-    material_name   TYPE arktx,      " Material name
-    qty             TYPE DZMENG,      " Quantity
-    process_rate    TYPE kbetr,      " Condition amount
-  END OF ty_final.
-
-*--- Declaration of internal tables and work areas ---
-DATA:
-  it_final  TYPE TABLE OF ty_final,  " Internal table for final structure
-  wa_final  TYPE ty_final.           " Work area for final structure
-
-*--- Declare variables for CDS replacements ---
-DATA: lt_result TYPE TABLE OF ty_final,   " Internal table for final result
-      ls_result TYPE ty_final.            " Work area for result.
-
-DATA: lt_fcat TYPE slis_t_fieldcat_alv,
-      ls_fcat TYPE slis_fieldcat_alv.
 START-OF-SELECTION.
 *--- Selecting data from KNVV and related tables ---
 SELECT vv~vkorg          AS plant_code,
        cnam~name1        AS plant_name,
        vv~kunnr          AS customer_code,
        kn~name1          AS customer_name,
+********************** AJ ***************************04-12-2024 Aakash j patel
+        vv~konda           AS cpg,
+         T18~VTEXT         as CPG_dec,
+         vv~pltyp          AS pl,
+          T189~PTEXT       AS pl_DEC,
+******************************************************
        vv~vsort          AS item_proposal_no,
        vp~matnr          AS material_code,
        vp~arktx          AS material_name,
@@ -93,7 +51,10 @@ SELECT vv~vkorg          AS plant_code,
                             AND kp~kschl = 'ZPSV'
   LEFT OUTER JOIN konp AS kpa ON kpa~knumh = a52~knumh
                             AND kpa~kschl = 'ZPSV'
-
+***********************AJ************************************ Aakash j patel 04-12-2024
+    LEFT OUTER JOIN T188T as T18 on T18~KONDA = vv~KONDA
+    LEFT OUTER JOIN T189T AS t189 ON t189~PLTYP = VV~PLTYP
+*************************************************************
   WHERE vv~vkorg = @P_VKORG
   INTO TABLE @it_final.
 
@@ -131,68 +92,79 @@ ls_fcat-tabname = 'ty_final'.
 ls_fcat-seltext_m = 'Customer Name'.
 APPEND ls_fcat TO lt_fcat.
 
+********************** AJ ***************************** Aakash j patel 04-12-2024
+* Field 3: Customer Code
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '5'.
+  ls_fcat-fieldname = 'konda'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'Cust. Price Group'.
+  APPEND ls_fcat TO lt_fcat.
+
+* Field 4: Customer Name
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '6'.
+  ls_fcat-fieldname = 'VTEXT'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'CPG Dec.'.
+  APPEND ls_fcat TO lt_fcat.
+* Field 3: Customer Code
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '7'.
+  ls_fcat-fieldname = 'PLTYP'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'Price List Tp.'.
+  APPEND ls_fcat TO lt_fcat.
+
+* Field 4: Customer Name
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '8'.
+  ls_fcat-fieldname = 'PTEXT'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'PL DEC.'.
+  APPEND ls_fcat TO lt_fcat.
+
+
 * Field 5: Item Proposal Number
-CLEAR ls_fcat.
-ls_fcat-col_pos = '5'.
-ls_fcat-fieldname = 'ITEM_PROPOSAL_NO'.
-ls_fcat-tabname = 'ty_final'.
-ls_fcat-seltext_m = 'Item Proposal No'.
-APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '9'.
+  ls_fcat-fieldname = 'ITEM_PROPOSAL_NO'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'Item Proposal No'.
+  APPEND ls_fcat TO lt_fcat.
 
 * Field 6: Material Code
-CLEAR ls_fcat.
-ls_fcat-col_pos = '6'.
-ls_fcat-fieldname = 'MATERIAL_CODE'.
-ls_fcat-tabname = 'ty_final'.
-ls_fcat-seltext_m = 'Material Code'.
-APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '10'.
+  ls_fcat-fieldname = 'MATERIAL_CODE'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'Material Code'.
+  APPEND ls_fcat TO lt_fcat.
 
 * Field 7: Material Name
-CLEAR ls_fcat.
-ls_fcat-col_pos = '7'.
-ls_fcat-fieldname = 'MATERIAL_NAME'.
-ls_fcat-tabname = 'ty_final'.
-ls_fcat-seltext_m = 'Material Name'.
-APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '11'.
+  ls_fcat-fieldname = 'MATERIAL_NAME'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'Material Name'.
+  APPEND ls_fcat TO lt_fcat.
 
 * Field 8: Quantity
-CLEAR ls_fcat.
-ls_fcat-col_pos = '8'.
-ls_fcat-fieldname = 'QTY'.
-ls_fcat-tabname = 'ty_final'.
-ls_fcat-seltext_m = 'Quantity'.
-APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '12'.
+  ls_fcat-fieldname = 'QTY'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'Quantity'.
+  APPEND ls_fcat TO lt_fcat.
 
 * Field 9: Process Rate
-CLEAR ls_fcat.
-ls_fcat-col_pos = '9'.
-ls_fcat-fieldname = 'PROCESS_RATE'.
-ls_fcat-tabname = 'ty_final'.
-ls_fcat-seltext_m = 'Process Rate'.
-APPEND ls_fcat TO lt_fcat.
-
-* Display the field catalog (just for debugging, optional)
-
-ls_fcat-col_pos = '5'.
-ls_fcat-fieldname = 'sale_org'.
-ls_fcat-tabname = 'lt_final'.
-ls_fcat-seltext_l = 'Name sale_org'.
-APPEND ls_fcat TO lt_fcat.
-CLEAR ls_fcat.
-
-ls_fcat-col_pos = '6'.
-ls_fcat-fieldname = 'dis_chann'.
-ls_fcat-tabname = 'lt_final'.
-ls_fcat-seltext_l = 'Name dis_chann'.
-APPEND ls_fcat TO lt_fcat.
-CLEAR ls_fcat.
-
-ls_fcat-col_pos = '7'.
-ls_fcat-fieldname = 'division'.
-ls_fcat-tabname = 'lt_final'.
-ls_fcat-seltext_l = 'Name division'.
-APPEND ls_fcat TO lt_fcat.
-CLEAR ls_fcat.
+  CLEAR ls_fcat.
+  ls_fcat-col_pos = '13'.
+  ls_fcat-fieldname = 'PROCESS_RATE'.
+  ls_fcat-tabname = 'ty_final'.
+  ls_fcat-seltext_m = 'Process Rate'.
+  APPEND ls_fcat TO lt_fcat.
+*************************************************
 
 
 
