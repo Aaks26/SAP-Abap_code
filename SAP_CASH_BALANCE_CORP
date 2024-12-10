@@ -1,0 +1,221 @@
+*&---------------------------------------------------------------------*
+*& Report Z_CASH_BALANCE_REPORT
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT z_cash_balance_report.
+
+" Select-Option for Date Range
+TABLES: acdoca.
+SELECT-OPTIONS: s_budat FOR acdoca-budat.
+
+" Type Definitions for Output Structure
+TYPES: BEGIN OF ty_final,
+         company          TYPE string,
+         Cash_BL          TYPE i,
+         Safe_BL          TYPE i,
+         Balance          TYPE i,
+       END OF ty_final.
+
+TYPES: BEGIN OF ty_tcj_c_journals,
+         comp_code   TYPE bukrs,      " Company Code
+         cajo_number TYPE cjnr,      " Cash Journal Number
+         gl_account  TYPE saknr,      " GL Account
+         currency    TYPE waers,       " Currency
+       END OF ty_tcj_c_journals.
+
+TYPES: BEGIN OF ty_tcj_cj_names,
+         mandt       TYPE mandt,         " Client Identifier
+         comp_code   TYPE bukrs,        " Company Code
+         cajo_number TYPE cjnr,        " Cash Journal Number
+         cajo_name   TYPE cjname,       " Cash Journal Name
+       END OF ty_tcj_cj_names.
+
+TYPES: BEGIN OF ty_skat,
+         ktopl TYPE ktopl,         " Chart of Accounts Key
+         saknr TYPE saknr,        " GL Account Number
+         txt50 TYPE txt50_skat,        " GL Account Description
+       END OF ty_skat.
+
+TYPES: BEGIN OF ty_acdoca,
+         company     TYPE acdoca-rbukrs,
+         glaccount   TYPE acdoca-racct,
+         cashjournal TYPE acdoca-aworg,
+         budat       TYPE acdoca-budat,
+         amount      TYPE acdoca-hsl,
+*  cashjournal TYPE acdoca-aworg, " This is aworg
+       END OF ty_acdoca.
+
+
+TYPES: BEGIN OF ty_t001,
+         bukrs TYPE t001-bukrs,
+         butxt TYPE t001-butxt,
+         adrnr TYPE adrnr,
+       END OF ty_t001.
+
+TYPES: BEGIN OF ty_adrc,
+         addrnumber TYPE adrc-addrnumber,
+         name1      TYPE adrc-name1,
+         name2      TYPE adrc-name2,
+         name3      TYPE adrc-name3,
+         name4      TYPE adrc-name4,
+       END OF ty_adrc.
+
+" Internal Tables and Work Areas
+DATA: lt_acdoca TYPE TABLE OF ty_acdoca,
+      lt_t001   TYPE TABLE OF ty_t001,
+      lt_adrc   TYPE TABLE OF ty_adrc,
+      lt_final  TYPE TABLE OF ty_final,
+      "lt_final      TYPE TABLE of ty_final,
+      wa_final  TYPE  ty_final.
+
+DATA: lt_C TYPE TABLE OF ty_tcj_c_journals,
+      wa_C TYPE ty_tcj_c_journals.
+
+DATA: lt_N TYPE TABLE OF ty_tcj_cj_names,
+      wa_N TYPE ty_tcj_cj_names.
+
+DATA: lt_skat TYPE TABLE OF ty_skat,
+      wa_skat TYPE ty_skat.
+" Temporary Variables for Calculations
+DATA: lv_opnamount  TYPE p LENGTH 16 DECIMALS 2,
+      lv_sum_amount TYPE p LENGTH 16 DECIMALS 2.
+
+
+START-OF-SELECTION.
+
+  SELECT comp_code cajo_number gl_account currency
+    INTO TABLE lt_c
+    FROM tcj_c_journals
+    WHERE currency = 'INR'
+    AND gl_account IN ('0000210010','0000210020','0000210012','0000210011')
+    AND cajo_number <> 'S012'.
+
+  SELECT comp_code cajo_number cajo_name
+    INTO TABLE lt_n
+    FROM tcj_cj_names
+    FOR ALL ENTRIES IN lt_c
+    WHERE  comp_code = lt_c-comp_code
+    AND cajo_number = lt_c-cajo_number.
+
+  SELECT ktopl saknr txt50
+    INTO TABLE lt_skat
+    FROM skat
+    FOR ALL ENTRIES IN lt_c
+    WHERE saknr = lt_c-gl_account
+    AND ktopl = 'LGIN'.
+
+  " Fetch Data from ACDOCA within the Date Range
+  SELECT rbukrs       AS company,
+         racct        AS glaccount,
+         aworg        AS cashjournal,
+         budat,
+         hsl          AS amount
+    INTO TABLE @lt_acdoca
+    FROM acdoca
+    FOR ALL ENTRIES IN @lt_c
+   WHERE budat IN @s_budat
+     AND belnr NOT LIKE 'B%'                  " Corrected condition for BELNR exclusion
+     AND rbukrs = @lt_c-comp_code             " Corrected field case to match structure
+     AND racct = @lt_c-gl_account .            " Adjusted field name case
+*and cashjournal+0(4) = @lt_c-cajo_number.
+
+  " Fetch Company Data
+  SELECT bukrs
+         butxt adrnr
+    INTO TABLE lt_t001
+    FROM t001
+    FOR ALL ENTRIES IN lt_c
+    WHERE bukrs = lt_c-comp_code.
+
+
+  " Fetch Company Full Names from ADRC
+  SELECT addrnumber
+         name1
+         name2
+         name3
+         name4
+    INTO TABLE lt_adrc
+    FROM adrc
+    FOR ALL ENTRIES IN lt_t001
+    WHERE addrnumber = lt_t001-ADRNR.
+
+" Declare intermediate variables
+DATA: lv_company             TYPE string,
+      lv_companyshortname    TYPE string,
+      lv_companyfullname     TYPE string,
+      lv_opnccamt            TYPE p LENGTH 16 DECIMALS 2,
+      lv_ccamt               TYPE p LENGTH 16 DECIMALS 2,
+      lv_ccbalance           TYPE p LENGTH 16 DECIMALS 2,
+      lv_opnsfamt            TYPE p LENGTH 16 DECIMALS 2,
+      lv_sfamt               TYPE p LENGTH 16 DECIMALS 2,
+      lv_sfbalance           TYPE p LENGTH 16 DECIMALS 2.
+
+
+
+  " Step 7: Process the Data and Populate Final Table
+  LOOP AT lt_c INTO wa_c.
+    CLEAR: wa_final.
+
+" Check if operation was successful and the company code is not one of the excluded values
+IF sy-subrc = 0 ."AND wa_c-comp_code <> '13' and wa_c-comp_code <> 'CE' and wa_c-comp_code <> '81' and wa_c-comp_code <> '82'.
+  " Determine the Company
+  CASE wa_c-comp_code.
+    WHEN 'I1'.
+      IF wa_c-cajo_number = 'C012'.
+        wa_final-company = 'I5'.
+      ELSE.
+        wa_final-company = wa_c-comp_code.
+      ENDIF.
+    WHEN 'I4'.
+      IF wa_c-cajo_number = 'C012'.
+        wa_final-company = 'I6'.
+      ELSE.
+        wa_final-company = wa_c-comp_code.
+      ENDIF.
+    WHEN 'I5'.
+      IF wa_c-cajo_number = 'C011'.
+        wa_final-company = 'I9A'.
+      ELSE.
+        wa_final-company = wa_c-comp_code.
+      ENDIF.
+    WHEN 'I6'.
+      IF wa_c-cajo_number = 'C011'.
+        wa_final-company = 'I9B'.
+      ELSE.
+        wa_final-company = wa_c-comp_code.
+      ENDIF.
+    WHEN OTHERS.
+      wa_final-company = wa_c-comp_code.
+  ENDCASE.
+
+ENDIF.
+
+
+ IF wa_c-comp_code = 'I1' AND wa_c-cajo_number = 'C012'.
+    lv_companyshortname = 'GRL ABHVA LAND'.
+ELSEIF wa_c-comp_code = 'I4' AND wa_c-cajo_number = 'C012'.
+  lv_companyshortname = 'SRL ABHVA LAND'.
+  ELSE ."lt_t001-butxt.
+ENDIF.
+
+    " Determine Cash Balance and Safe Balance
+    READ TABLE lt_acdoca WITH KEY company = wa_c-comp_code glaccount = wa_c-gl_account INTO DATA(wa_acdoca).
+    IF sy-subrc = 0 and wa_acdoca-cashjournal+0(4) = wa_c-cajo_number.
+      wa_final-cash_bl = wa_acdoca-amount.
+    ENDIF.
+
+    READ TABLE lt_n WITH KEY comp_code = wa_c-comp_code cajo_number = wa_c-cajo_number INTO wa_n.
+    IF sy-subrc = 0.
+      wa_final-safe_bl = wa_n-cajo_name.
+    ENDIF.
+
+    " Calculate Total Balance
+    wa_final-balance = wa_final-cash_bl + wa_final-safe_bl.
+
+    " Append to Final Table
+    APPEND wa_final TO lt_final.
+  ENDLOOP.
+
+  " Step 8: Display the Results
+  cl_demo_output=>display( lt_final ).
