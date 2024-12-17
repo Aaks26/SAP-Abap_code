@@ -1,0 +1,2598 @@
+*&---------------------------------------------------------------------*
+*& Report ZRMM_PURCHASE_REGISTER
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmm_purchase_gstr.
+TABLES:rbkp,rseg,bseg ,mara,ekko.
+**********************selection-screen*************************************************
+INCLUDE zrmm_purchase_register_ss_cp.
+*************************************************************************************
+***************** STRUCTURE TABLES***************************************************
+INCLUDE zrmm_purchase_register_top_cp.
+******************************************************************************************
+
+
+
+START-OF-SELECTION.
+  PERFORM get_tax_data.
+
+  DATA:lv_saknr TYPE saknr.
+  REFRESH gt_final.
+
+  SELECT matnr matkl spart extwg
+  FROM mara
+  INTO TABLE lt_mara.
+  IF sy-subrc = 0.
+    SORT lt_mara BY matnr.
+    DELETE ADJACENT DUPLICATES FROM lt_mara COMPARING matnr.
+
+    LOOP AT lt_mara INTO ls_mara.
+      lr_matnr-sign = 'I'.
+      lr_matnr-option = 'EQ'.
+      lr_matnr-low = ls_mara-matnr.
+
+      APPEND lr_matnr.
+      CLEAR lr_matnr.
+    ENDLOOP.
+
+
+  ENDIF.
+
+  REFRESH lt_rbkp[].
+  SELECT belnr  gjahr blart bldat budat
+  usnam  xblnr bukrs lifnr waers
+  wmwst1 landl gsber cpudt
+  FROM rbkp
+  INTO TABLE lt_rbkp
+  WHERE budat IN s_postdt
+  AND bukrs IN s_bukrs
+  AND lifnr IN s_vendor.
+  IF lt_rbkp[] IS NOT INITIAL.
+    SORT lt_rbkp BY belnr gjahr.
+
+**************vendor name***************
+    SELECT lifnr name1 ort01 land1 regio j_1iexcd j_1iexrn j_1iexrg j_1iexdi j_1iexco j_1icstno j_1ilstno
+    j_1ipanno j_1iexcive  j_1issist j_1ivtyp j_1ivencre j_1isern stceg ven_class
+    FROM lfa1
+    INTO TABLE lt_lfa1
+    FOR ALL ENTRIES IN lt_rbkp
+    WHERE lifnr = lt_rbkp-lifnr.
+*****************Vendor GSTIN*****************
+    SELECT partner taxtype taxnum taxnumxl
+    FROM dfkkbptaxnum
+    INTO TABLE lt_ven_gstin
+    FOR ALL ENTRIES IN lt_rbkp
+    WHERE partner = lt_rbkp-lifnr
+    AND taxtype = 'IN3'.
+*****************************************************************************
+    REFRESH lt_rseg[].
+    SELECT belnr gjahr buzei ebeln
+    ebelp matnr bukrs werks
+    wrbtr shkzg mwskz menge
+    meins lfbnr lfgja lfpos
+    lifnr hsn_sac xblnr
+    FROM rseg
+    INTO TABLE lt_rseg
+    FOR ALL ENTRIES IN lt_rbkp
+    WHERE belnr = lt_rbkp-belnr
+    AND gjahr = lt_rbkp-gjahr.
+
+    IF sy-subrc = 0 AND lt_mara IS INITIAL.
+      SELECT matnr matkl spart extwg
+      FROM mara
+      INTO TABLE lt_mara
+      FOR ALL ENTRIES IN lt_rseg
+      WHERE matnr = lt_rseg-matnr.
+    ENDIF.
+***************************************************************************************
+    IF lt_rseg[] IS NOT INITIAL.
+      SELECT belnr,gjahr,buzei,saknr,anln1,bukrs
+           FROM rbco
+           INTO TABLE @DATA(lt_rbco)
+           FOR ALL ENTRIES IN @lt_rseg
+           WHERE belnr = @lt_rseg-belnr
+             AND bukrs = @lt_rseg-bukrs
+             AND gjahr = @lt_rseg-gjahr
+             AND buzei = @lt_rseg-buzei.
+      IF lt_rbco[] IS NOT INITIAL.
+
+*            AND saknr = @lt_rbco-saknr.
+
+        SELECT *
+          FROM anlh
+          INTO TABLE @DATA(lt_anlh)
+          FOR ALL ENTRIES IN @lt_rbco
+          WHERE bukrs IN @s_bukrs
+            AND anln1 = @lt_rbco-anln1.
+      ENDIF.
+
+      SELECT *
+      FROM skat
+      INTO TABLE @DATA(lt_sakt)
+*          FOR ALL ENTRIES IN @lt_rbco
+            WHERE spras = @sy-langu
+            AND ktopl = 'LGIN'.
+    ENDIF.
+
+  ENDIF.
+
+  IF lt_lfa1[] IS NOT INITIAL.
+    SORT lt_lfa1 BY lifnr.
+  ENDIF.
+
+  SELECT spras land1 bland bezei
+  FROM t005u
+  INTO TABLE lt_t005u
+  WHERE spras = sy-langu
+  AND land1 = 'IN'.
+
+  IF lt_rseg[] IS NOT INITIAL.
+    SORT lt_rseg BY bukrs belnr gjahr buzei.
+
+    SELECT werks name1 j_1bbranch regio
+    FROM t001w
+    INTO TABLE lt_t001w
+    FOR ALL ENTRIES IN lt_rseg
+    WHERE werks = lt_rseg-werks.
+
+    IF lt_t001w[] IS NOT INITIAL.
+      SORT lt_t001w BY werks.
+
+      SELECT bukrs branch gstin
+      FROM j_1bbranch
+      INTO TABLE lt_gstin
+      FOR ALL ENTRIES IN lt_t001w
+      WHERE branch = lt_t001w-j_1bbranch.
+      IF lt_gstin[] IS NOT INITIAL.
+        SORT lt_gstin BY bukrs branch.
+      ENDIF.
+    ENDIF.
+
+
+    IF lt_mara[] IS NOT INITIAL.
+      SORT lt_mara BY matnr.
+
+      SELECT matnr spras maktx maktg
+      FROM makt
+      INTO TABLE lt_makt
+      FOR ALL ENTRIES IN lt_mara
+      WHERE matnr = lt_mara-matnr
+      AND spras = sy-langu.
+      IF lt_makt[] IS NOT INITIAL.
+        SORT lt_makt[] BY matnr spras.
+      ENDIF.
+    ENDIF.
+
+    SELECT matnr werks prctr steuc
+    FROM marc
+    INTO TABLE lt_marc
+    FOR ALL ENTRIES IN lt_rseg
+    WHERE matnr = lt_rseg-matnr
+    AND werks = lt_rseg-werks.
+    IF  lt_marc IS NOT INITIAL.
+      SORT lt_marc BY matnr werks.
+    ENDIF.
+
+    SELECT spras kalsm mwskz text1
+    FROM t007s
+    INTO TABLE lt_t007s
+    FOR ALL ENTRIES IN lt_rseg
+    WHERE spras = sy-langu
+    AND kalsm = 'TAXINN'
+    AND mwskz = lt_rseg-mwskz.
+
+    IF lt_t007s[] IS NOT INITIAL.
+      SORT lt_t007s BY spras kalsm mwskz.
+    ENDIF.
+
+    SELECT ebeln bsart bedat ekorg knumv bstyp ekgrp
+    FROM ekko
+    INTO TABLE lt_ekko
+    FOR ALL ENTRIES IN lt_rseg
+    WHERE ebeln = lt_rseg-ebeln.
+    IF lt_ekko[] IS NOT INITIAL.
+      SORT lt_ekko[] BY ebeln.
+
+      SELECT knumv kposn stunr zaehk kschl lifnr kwert
+      FROM prcd_elements
+      INTO TABLE lt_prcd
+      FOR ALL ENTRIES IN lt_ekko
+      WHERE knumv = lt_ekko-knumv
+      AND kschl IN ('JSDB' , 'JEDB' , 'JCDB').
+
+      IF lt_prcd[] IS NOT INITIAL.
+        SORT lt_prcd[] BY knumv kposn.
+      ENDIF.
+
+      SELECT ebeln
+      ebelp
+      loekz
+      txz01
+      matnr
+      werks
+      lgort
+      matkl
+      netpr
+      pstyp
+      FROM ekpo  INTO TABLE lt_ekpo
+      FOR ALL ENTRIES IN lt_ekko
+      WHERE ebeln = lt_ekko-ebeln.
+    ENDIF.
+
+    SELECT ebeln ebelp prctr
+    FROM ekkn
+    INTO TABLE lt_ekkn
+    FOR ALL ENTRIES IN lt_rseg
+    WHERE ebeln = lt_rseg-ebeln
+    AND ebelp = lt_rseg-ebelp.
+
+    IF lt_ekkn[] IS NOT INITIAL.
+      SORT lt_ekkn BY ebeln ebelp.
+    ENDIF.
+****************For EKBE table Data********************
+    REFRESH lt_ekbe[].
+    SELECT ebeln ebelp zekkn
+           vgabe gjahr belnr
+           buzei bewtp bwart
+           budat menge dmbtr
+           wrbtr bpmng shkzg mwskz xblnr
+    FROM ekbe
+    INTO TABLE lt_ekbe
+    FOR ALL ENTRIES IN lt_rseg
+    WHERE ebeln = lt_rseg-ebeln
+    AND ebelp = lt_rseg-ebelp.
+
+    IF lt_ekbe[] IS NOT INITIAL.
+      SORT lt_ekbe BY belnr gjahr.
+      lt_ekbe_inv[] = lt_ekbe[].
+      lt_ekbe_grn[] = lt_ekbe[].
+      DELETE lt_ekbe_inv WHERE bewtp <> 'Q'.     " for INvoice Documents
+      DELETE lt_ekbe_grn WHERE bewtp <> 'E'.     " for GRN Documents
+
+      IF lt_ekbe_grn IS NOT INITIAL.
+        SORT lt_ekbe_grn BY belnr DESCENDING.
+      ENDIF.
+************************************************ AJ ********************* Aakash j patel
+      REFRESH gt_nsdm_mkpf[].
+      SELECT mblnr mjahr lfbnr lfbja budat_mkpf ebeln ebelp nplnr aufpl aplzl projn PS_PSP_PNR
+        FROM nsdm_v_mseg
+        INTO TABLE gt_nsdm_mkpf
+        FOR ALL ENTRIES IN lt_rseg
+        WHERE ebeln = lt_rseg-ebeln
+          AND ebelp = lt_rseg-ebelp.
+
+      SELECT aufnr ktext
+        FROM m_aukob
+        INTO TABLE it_aukob
+        FOR ALL ENTRIES IN gt_nsdm_mkpf
+        WHERE aufnr = gt_nsdm_mkpf-nplnr .
+    ENDIF.
+
+    SELECT aufpl aplzl vornr ltxa1 projn
+      FROM afvc
+      INTO TABLE it_afvc
+      FOR ALL ENTRIES IN gt_nsdm_mkpf
+      WHERE aufpl = gt_nsdm_mkpf-aufpl AND aplzl = gt_nsdm_mkpf-aplzl.
+*************************** WBS *************************************
+    SELECT pspnr poski post1 posid
+      FROM prps
+      INTO TABLE it_prps
+      FOR ALL ENTRIES IN it_afvc
+      WHERE pspnr = it_afvc-projn.
+
+*************************************************************************************
+***    start of change by sunil
+    TYPES:BEGIN OF ty_rseg_temp,
+            awkey TYPE awkey,
+            ebeln TYPE ebeln,
+            ebelp TYPE ebelp,
+            matnr TYPE matnr,
+            menge TYPE menge_d,
+          END OF ty_rseg_temp.
+
+    DATA:lt_rseg_temp TYPE STANDARD TABLE OF ty_rseg_temp,
+
+         lv_awkey     TYPE awkey,
+         lv_line      TYPE i.
+
+    FIELD-SYMBOLS:<fs_rseg_temp> TYPE ty_rseg_temp,
+                  <fs_rseg>      LIKE LINE OF lt_rseg.
+
+    LOOP AT lt_rseg ASSIGNING <fs_rseg>.
+      APPEND INITIAL LINE TO lt_rseg_temp ASSIGNING <fs_rseg_temp>.
+      CONCATENATE <fs_rseg>-belnr <fs_rseg>-gjahr INTO <fs_rseg_temp>-awkey.
+      <fs_rseg_temp>-ebeln = <fs_rseg>-ebeln.
+      <fs_rseg_temp>-ebelp = <fs_rseg>-ebelp.
+      <fs_rseg_temp>-matnr = <fs_rseg>-matnr.
+      <fs_rseg_temp>-menge = <fs_rseg>-menge.
+    ENDLOOP.
+
+    IF lt_rseg_temp IS NOT INITIAL.
+      SORT lt_rseg_temp BY awkey ebeln ebelp matnr menge.
+
+      SELECT  belnr
+      buzei
+      gjahr
+      awkey
+      ebeln
+      ebelp
+      mwskz
+      wrbtr
+      ktosl
+      matnr
+      bupla"added by sunil dt:10.10.2018
+      FROM bseg APPENDING TABLE lt_bseg
+      FOR ALL ENTRIES IN lt_rseg_temp
+      WHERE awkey = lt_rseg_temp-awkey AND
+      ebeln = lt_rseg_temp-ebeln AND
+      ebelp = lt_rseg_temp-ebelp AND
+      matnr = lt_rseg_temp-matnr .
+      IF sy-subrc = 0.
+        SELECT bukrs
+        belnr
+        gjahr
+        bldat
+        budat
+        usnam
+        xblnr
+        waers
+        bktxt XBLNR_ALT
+        FROM bkpf
+        INTO TABLE lt_bkpf
+        FOR ALL ENTRIES IN lt_bseg
+        WHERE bukrs IN s_bukrs AND
+        belnr = lt_bseg-belnr AND
+        gjahr = lt_bseg-gjahr.
+
+      ENDIF.
+    ENDIF.
+**    end of change by sunil
+    IF lt_bseg[] IS NOT INITIAL.
+      SORT lt_bseg BY belnr gjahr buzei.
+
+      SELECT bukrs
+      belnr
+      gjahr
+      buzei
+      buzid
+      koart
+      awkey
+      dmbtr
+      hkont
+      lifnr
+      wrbtr
+      ktosl
+      txgrp
+      ebeln
+      ebelp
+      shkzg
+      mwskz
+      taxps
+      prctr
+      gsber
+      matnr
+      menge
+      xref3
+      bupla
+      FROM bseg INTO TABLE lt_bseg_1
+      FOR ALL ENTRIES IN lt_bseg
+      WHERE awkey = lt_bseg-awkey.
+
+      IF lt_bseg_1[] IS NOT INITIAL.
+        REFRESH it_with[].
+        SELECT bukrs belnr gjahr buzei witht wt_qbshh
+          FROM with_item
+          INTO TABLE it_with
+          FOR ALL ENTRIES IN lt_bseg_1
+          WHERE bukrs = lt_bseg_1-bukrs
+            AND belnr = lt_bseg_1-belnr
+            AND gjahr = lt_bseg_1-gjahr
+            AND buzei = lt_bseg_1-buzei.
+
+        DELETE it_with WHERE wt_qbshh IS INITIAL.
+*        DELETE lt_bseg_1 WHERE hkont IN  lr_hkont.
+*        LOOP AT lt_bseg_1 ASSIGNING <fs_bseg_1>.
+*          CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+*            EXPORTING
+*              input  = <fs_bseg_1>-hkont
+*            IMPORTING
+*              output = lv_hkont.
+*          IF lv_hkont+0(1) = '4'.
+*            <fs_bseg_1>-gl_flag = 'X'.
+*          ENDIF.
+*          CLEAR:lv_hkont.
+*        ENDLOOP.
+*        DELETE lt_bseg_1 WHERE gl_flag = 'X'.
+        LOOP AT lt_bseg_1 INTO ls_bseg_1.
+          MOVE-CORRESPONDING ls_bseg_1 TO ls_bseg_2.
+          ls_bseg_2-belnr_n = ls_bseg_1-awkey+0(10).
+          APPEND ls_bseg_2 TO lt_bseg_2.
+          CLEAR ls_bseg_2.
+        ENDLOOP.
+
+        SELECT bukrs belnr
+        gjahr
+        buzei
+        hwbas
+        hwste
+        kschl
+        txgrp
+        shkzg
+        mwskz
+        taxps
+        kbetr
+        FROM bset
+        INTO TABLE lt_bset
+        FOR ALL ENTRIES IN lt_bseg_1
+        WHERE belnr = lt_bseg_1-belnr
+          AND bukrs = lt_bseg_1-bukrs
+        AND gjahr = lt_bseg_1-gjahr AND
+        txgrp = lt_bseg_1-txgrp.
+
+        IF lt_bset[] IS NOT INITIAL.
+          SORT lt_bset BY bukrs belnr gjahr hwbas.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  LOOP AT lt_rseg ASSIGNING <ls_rseg>.
+    ls_rseg_sum-belnr = <ls_rseg>-belnr.
+    ls_rseg_sum-gjahr = <ls_rseg>-gjahr.
+    ls_rseg_sum-wrbtr = <ls_rseg>-wrbtr.
+    COLLECT ls_rseg_sum INTO lt_rseg_sum.
+  ENDLOOP.
+
+  SORT   lt_bseg_1 BY awkey gjahr ebeln ebelp.
+
+  LOOP AT lt_bseg_1 ASSIGNING <fs_bseg_1>.
+    ls_bseg_summ-awkey = <fs_bseg_1>-awkey.
+    ls_bseg_summ-gjahr = <fs_bseg_1>-gjahr.
+    ls_bseg_summ-ebeln = <fs_bseg_1>-ebeln.
+    ls_bseg_summ-ebelp = <fs_bseg_1>-ebelp.
+    IF <fs_bseg_1>-shkzg = 'H'.
+      ls_bseg_summ-dmbtr = <fs_bseg_1>-dmbtr * -1.
+    ELSE.
+      ls_bseg_summ-dmbtr = <fs_bseg_1>-dmbtr.
+    ENDIF.
+    COLLECT ls_bseg_summ INTO lt_bseg_summ.
+  ENDLOOP.
+
+  SORT lt_lfa1 BY lifnr.
+  SORT lt_bset BY belnr gjahr txgrp.
+
+
+*******************************************************************
+  LOOP AT lt_rseg ASSIGNING <ls_rseg>.
+    CLEAR ls_ekpo.
+    READ TABLE lt_ekpo INTO ls_ekpo WITH KEY ebeln = <ls_rseg>-ebeln
+                                             ebelp = <ls_rseg>-ebelp.
+*    IF sy-subrc = 0.
+*      gs_final-mat_desc = ls_ekpo-txz01.
+*    ENDIF.
+    gs_final-hsn_code = <ls_rseg>-hsn_sac.
+    gs_final-buzei = <ls_rseg>-buzei.
+    CLEAR ls_rbkp.
+    READ TABLE lt_rbkp INTO ls_rbkp WITH KEY
+    belnr = <ls_rseg>-belnr
+    gjahr = <ls_rseg>-gjahr.
+    IF sy-subrc = 0.
+      gs_final-bukrs = ls_rbkp-bukrs.
+      gs_final-vendor = ls_rbkp-lifnr.
+      gs_final-vend_inv = ls_rbkp-xblnr.
+      gs_final-vend_inv_dt = ls_rbkp-bldat.
+*      gs_final-busi_area = ls_rbkp-gsber.
+      gs_final-budat = ls_rbkp-budat.
+      gs_final-bldat = ls_rbkp-bldat.
+      gs_final-waers = ls_rbkp-waers.
+      gs_final-usnam = ls_rbkp-usnam.
+      gs_final-blart = ls_rbkp-blart.
+      gs_final-land1 = ls_rbkp-landl.
+      gs_final-cpudt = ls_rbkp-cpudt.
+
+      CLEAR ls_lfa1.
+      READ TABLE lt_lfa1 INTO ls_lfa1 WITH KEY lifnr = ls_rbkp-lifnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        gs_final-v_name1 = ls_lfa1-name1.
+        gs_final-vat_no = ls_lfa1-stceg.       " Tin No
+        gs_final-j_1icstno = ls_lfa1-j_1icstno.
+        gs_final-j_1isern = ls_lfa1-j_1isern.
+        gs_final-j_1ipanno = ls_lfa1-j_1ipanno.
+        gs_final-j_1ilstno = ls_lfa1-j_1ilstno.
+        gs_final-j_1iexcd = ls_lfa1-j_1iexcd.
+        gs_final-regio = ls_lfa1-regio.
+        gs_final-ven_class = ls_lfa1-ven_class.
+
+        IF gs_final-ven_class IS INITIAL.
+          gs_final-ven_class_desc = 'Registered'.
+        ELSEIF gs_final-ven_class = '0'.
+          gs_final-ven_class_desc = 'Not Registered'.
+        ELSEIF gs_final-ven_class = '1'.
+          gs_final-ven_class_desc = 'Compounding Scheme'.
+        ENDIF.
+
+        READ TABLE lt_t005u INTO ls_t005u WITH KEY  spras = sy-langu
+        bland = ls_lfa1-regio.
+        IF sy-subrc = 0.
+          gs_final-bezei = ls_t005u-bezei.
+        ENDIF.
+      ENDIF.
+
+***************vendor gstin************************************
+      READ TABLE lt_ven_gstin INTO ls_ven_gstin WITH KEY partner = ls_rbkp-lifnr
+      taxtype = 'IN3'.
+      IF sy-subrc = 0.
+        gs_final-ven_gstin = ls_ven_gstin-taxnum.
+      ENDIF.
+    ENDIF.
+
+*************** Material Data *********************************
+    CLEAR ls_mara.
+    gs_final-matnr = <ls_rseg>-matnr.
+    READ TABLE lt_mara INTO ls_mara WITH KEY matnr = <ls_rseg>-matnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      gs_final-mat_grp = ls_mara-matkl.
+      READ TABLE lt_makt INTO ls_makt WITH KEY matnr = ls_mara-matnr
+      spras = sy-langu BINARY SEARCH.
+      IF sy-subrc = 0.
+        gs_final-mat_desc = ls_makt-maktx.
+      ENDIF.
+    ENDIF.
+
+    gs_final-belnr = <ls_rseg>-belnr.
+
+    READ TABLE lt_rbco INTO DATA(ls_rbco) WITH KEY belnr = <ls_rseg>-belnr
+                                                   gjahr = <ls_rseg>-gjahr
+                                                   buzei = <ls_rseg>-buzei
+                                                   bukrs = <ls_rseg>-bukrs.
+    IF sy-subrc = 0.
+      gs_final-saknr = ls_rbco-saknr.
+      gs_final-anln1 = ls_rbco-anln1.
+
+      READ TABLE lt_sakt INTO DATA(ls_sakt) WITH KEY saknr = gs_final-saknr.
+      IF sy-subrc = 0.
+        gs_final-gl_desc = ls_sakt-txt50.
+        CLEAR ls_sakt.
+      ENDIF.
+      READ TABLE lt_anlh INTO DATA(ls_anlh) WITH KEY anln1 = ls_rbco-anln1.
+      IF sy-subrc = 0.
+        gs_final-ass_desc = ls_anlh-anlhtxt.
+      ENDIF.
+    ENDIF.
+
+    IF gs_final-saknr IS INITIAL.
+
+      DATA:lv_mat TYPE matnr.
+      CLEAR lv_mat.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+        EXPORTING
+          input  = gs_final-matnr
+        IMPORTING
+          output = lv_mat.
+
+      CLEAR lv_saknr.
+      CONCATENATE '252' lv_mat+0(3) INTO lv_saknr.
+      gs_final-saknr = lv_saknr.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = gs_final-saknr
+        IMPORTING
+          output = gs_final-saknr.
+
+      READ TABLE lt_sakt INTO DATA(ls_sakt1) WITH KEY saknr = gs_final-saknr.
+      IF sy-subrc = 0.
+        gs_final-gl_desc = ls_sakt1-txt50.
+        CLEAR:ls_sakt1.
+      ENDIF.
+    ENDIF.
+
+*    gs_final-xblnr = <ls_rseg>-xblnr.
+    IF <ls_rseg>-shkzg = 'H'.
+      gs_final-menge = <ls_rseg>-menge * ( -1 ).
+    ELSE.
+      gs_final-menge = <ls_rseg>-menge.
+    ENDIF.
+    gs_final-meins = <ls_rseg>-meins.
+
+    IF <ls_rseg>-shkzg = 'H'.
+      gs_final-wrbtr = <ls_rseg>-wrbtr * -1.
+    ELSEIF <ls_rseg>-shkzg = 'S'.
+      gs_final-wrbtr = <ls_rseg>-wrbtr.
+    ENDIF.
+
+    gs_final-tax_code = <ls_rseg>-mwskz.
+    gs_final-ebeln = <ls_rseg>-ebeln.
+    gs_final-werks = <ls_rseg>-werks.
+    gs_final-shkzg = <ls_rseg>-shkzg.     " Debit/ Credit
+    gs_final-mblnr = <ls_rseg>-lfbnr.
+    gs_final-mjahr = <ls_rseg>-lfgja.
+
+*****************For GRN Documents************************************
+    CLEAR ls_ekbe_grn.
+    READ TABLE lt_ekbe_grn INTO ls_ekbe_grn WITH KEY belnr = <ls_rseg>-lfbnr
+                                                     gjahr = <ls_rseg>-lfgja.
+    IF sy-subrc = 0.
+      gs_final-grn_date = ls_ekbe_grn-budat.
+      gs_final-ref = ls_ekbe_grn-xblnr.
+    ELSE.
+      CLEAR gs_nsdm_mkpf.
+**************************************** AJ ******************************** " Aakash j patel
+      READ TABLE gt_nsdm_mkpf INTO gs_nsdm_mkpf WITH KEY lfbnr = <ls_rseg>-lfbnr
+                                                         lfbja = <ls_rseg>-lfgja.
+      IF sy-subrc = 0.
+        gs_final-grn_date = gs_nsdm_mkpf-budat_mkpf.
+        gs_final-nplnr = gs_nsdm_mkpf-Nplnr.
+      ENDIF.
+    ENDIF.
+
+    READ TABLE it_aukob INTO wa_aukob WITH KEY aufnr = gs_nsdm_mkpf-nplnr.
+    gs_final-ktext = wa_aukob-ktext.
+
+    READ TABLE it_afvc INTO wa_afvc WITH  KEY  aufpl = gs_nsdm_mkpf-aufpl  aplzl = gs_nsdm_mkpf-aplzl.
+    gs_final-vornr = wa_afvc-vornr.
+    gs_final-ltxa1 = wa_afvc-ltxa1.
+
+    READ TABLE it_prps INTO wa_prps WITH key pspnr = wa_afvc-projn.
+    gs_final-POSKI = wa_prps-posid.
+    gs_final-post1 = wa_prps-post1.
+    gs_final-posid = wa_prps-posid.
+************************************************************************************************
+**************For Business Place & GST IN number**********************
+    READ TABLE lt_t001w INTO ls_t001w WITH KEY werks = <ls_rseg>-werks.
+    IF sy-subrc = 0.
+      gs_final-plant_name = ls_t001w-name1.
+*      gs_final-j_1bbranch = ls_t001w-j_1bbranch." Commented by sunil dt:10.10.2018
+      gs_final-plant_regio = ls_t001w-regio.
+
+      READ TABLE lt_gstin INTO ls_gstin WITH KEY branch = ls_t001w-j_1bbranch.
+      IF sy-subrc = 0.
+        gs_final-plant_gstin = ls_gstin-gstin.
+        gs_final-gstin = ls_gstin-gstin.
+      ENDIF.
+
+      READ TABLE lt_t005u INTO ls_t005u WITH KEY  spras = sy-langu
+      bland = ls_t001w-regio.
+      IF sy-subrc = 0.
+        gs_final-plant_regio_desc = ls_t005u-bezei.
+      ENDIF.
+    ENDIF.
+
+
+****************For Rate of Invoice *******************
+    gs_final-rate = <ls_rseg>-wrbtr / <ls_rseg>-menge.
+
+****************Tax Code Description*******************
+    CLEAR ls_t007s.
+    READ TABLE lt_t007s INTO ls_t007s WITH KEY spras = sy-langu
+    kalsm = 'TAXINN'
+    mwskz = <ls_rseg>-mwskz.
+    IF sy-subrc = 0.
+      gs_final-tax_desc = ls_t007s-text1.
+    ENDIF.
+*********************For PO Date************************
+    CLEAR ls_ekko.
+    READ TABLE lt_ekko INTO ls_ekko WITH KEY ebeln = <ls_rseg>-ebeln BINARY SEARCH.
+    IF sy-subrc = 0.
+      gs_final-po_date = ls_ekko-bedat.
+      gs_final-bsart   = ls_ekko-bsart.
+      gs_final-ekorg   = ls_ekko-ekorg.
+      gs_final-ekgrp   = ls_ekko-ekgrp.
+      READ TABLE lt_ekpo INTO ls_ekpo WITH KEY ebeln = ls_ekko-ebeln
+      ebelp = <ls_rseg>-ebelp. " added by pramod
+      IF sy-subrc = 0 AND ls_ekpo-pstyp = '3'.
+        gs_final-bstyp  = 'L'."ls_ekpo-pstyp.
+      ENDIF.
+      CLEAR ls_prcd.
+      READ TABLE lt_prcd INTO ls_prcd WITH KEY knumv = ls_ekko-knumv
+      kposn = <ls_rseg>-ebelp.
+      IF sy-subrc = 0.
+        IF ls_prcd-kschl = 'JCDB'.
+
+          IF <ls_rseg>-shkzg = 'H'.
+            gs_final-jcdb_amnt = ls_prcd-kwert * -1.
+          ELSEIF <ls_rseg>-shkzg = 'S'.
+            gs_final-jcdb_amnt = ls_prcd-kwert.
+          ENDIF.
+
+        ELSEIF ls_prcd-kschl = 'JEDB'.
+
+          IF <ls_rseg>-shkzg = 'H'.
+            gs_final-jedb_amnt = ls_prcd-kwert * -1.
+          ELSEIF <ls_rseg>-shkzg = 'S'.
+            gs_final-jedb_amnt = ls_prcd-kwert.
+          ENDIF.
+
+        ELSEIF ls_prcd-kschl = 'JSDB'.
+
+          IF <ls_rseg>-shkzg = 'H'.
+            gs_final-jsdb_amnt = ls_prcd-kwert * -1.
+          ELSEIF <ls_rseg>-shkzg = 'S'.
+            gs_final-jsdb_amnt = ls_prcd-kwert.
+          ENDIF.
+
+        ENDIF.
+      ENDIF.
+    ENDIF.
+****************Profit Center****************************
+    CLEAR ls_marc.
+*************** Vendor Amount******************************
+    CLEAR ls_bseg.
+
+    ON CHANGE OF <ls_rseg>-belnr.
+      READ TABLE lt_bseg INTO ls_bseg WITH KEY   belnr = <ls_rseg>-belnr
+      buzei = <ls_rseg>-buzei
+      gjahr = <ls_rseg>-gjahr BINARY SEARCH.
+      IF sy-subrc = 0.
+*      ON CHANGE OF <ls_rseg>-belnr.
+
+        CLEAR ls_bseg_1.
+        READ TABLE lt_bseg_1 INTO ls_bseg_1 WITH KEY awkey = ls_bseg-awkey
+        gjahr = ls_bseg-gjahr
+        koart = 'K'.
+        IF sy-subrc = 0.
+          IF <ls_rseg>-shkzg = 'S'.
+            gs_final-vend_amt = ls_bseg_1-dmbtr.
+          ELSEIF <ls_rseg>-shkzg = 'H'.
+            gs_final-vend_amt = ( ls_bseg_1-dmbtr ) * -1.
+          ENDIF.
+        ENDIF.
+        READ TABLE lt_rseg_sum INTO ls_rseg_sum WITH KEY belnr = <ls_rseg>-belnr
+        gjahr = ls_rbkp-gjahr.
+        IF sy-subrc = 0.
+          gs_final-diff_amnt = gs_final-vend_amt - ( ls_rseg_sum-wrbtr + ls_rbkp-wmwst1 ).
+        ENDIF.
+
+        lv_belnr_temp = <ls_rseg>-belnr.
+
+*      ENDON.
+      ELSE. " added by sunil dt:13.03.2018
+        CONCATENATE <ls_rseg>-belnr <ls_rseg>-gjahr INTO lv_awkey.
+        READ TABLE lt_bseg INTO ls_bseg WITH KEY awkey = lv_awkey
+        ebeln = <ls_rseg>-ebeln
+        ebelp = <ls_rseg>-ebelp
+        matnr = <ls_rseg>-matnr.
+        IF sy-subrc = 0 .
+*        ON CHANGE OF <ls_rseg>-belnr.
+
+*          CLEAR ls_bseg_1.
+*          READ TABLE lt_bseg_1 INTO ls_bseg_1 WITH KEY belnr = <fs_rseg>-belnr
+*                                                       awkey = ls_bseg-awkey
+*                                                       gjahr = ls_bseg-gjahr
+*                                                       koart = 'K'.
+*          IF sy-subrc = 0.
+*            IF <ls_rseg>-shkzg = 'S'.
+*              gs_final-vend_amt = ls_bseg_1-dmbtr.
+*            ELSEIF <ls_rseg>-shkzg = 'H'.
+*              gs_final-vend_amt = ( ls_bseg_1-dmbtr ) * -1.
+*            ENDIF.
+*          ENDIF.
+          READ TABLE lt_rseg_sum INTO ls_rseg_sum
+          WITH KEY belnr = <ls_rseg>-belnr
+          gjahr = ls_rbkp-gjahr.
+          IF sy-subrc = 0.
+            gs_final-diff_amnt = gs_final-vend_amt - ( ls_rseg_sum-wrbtr + ls_rbkp-wmwst1 ).
+          ENDIF.
+*        ENDON.
+        ENDIF.
+      ENDIF.
+    ENDON.
+*************************FI Doc************************************
+    CLEAR : ls_bseg_1, lv_txgrp, lv_belnr, lv_gjahr.
+**    start of change by sunil
+
+    DATA lv_matnr TYPE matnr.
+    CLEAR lv_matnr.
+
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+      EXPORTING
+        input  = <ls_rseg>-matnr
+      IMPORTING
+        output = lv_matnr.
+
+****start of addition by sunil 05.07.2018
+***    Ekbe case
+*    READ TABLE lt_bseg INTO ls_bseg WITH KEY   belnr = <ls_rseg>-belnr
+*                                               buzei = <ls_rseg>-buzei
+*                                               gjahr = <ls_rseg>-gjahr BINARY SEARCH.
+*    IF sy-subrc <> 0.
+    CONCATENATE <ls_rseg>-belnr <ls_rseg>-gjahr INTO lv_awkey.
+    READ TABLE lt_bseg INTO ls_bseg WITH KEY awkey = lv_awkey
+    ebeln = <ls_rseg>-ebeln
+    ebelp = <ls_rseg>-ebelp
+    matnr = <ls_rseg>-matnr.
+
+*    ENDIF.
+
+***    end of addition by sunil
+*--> Added By Bijalkumar Chauhan (24.08.2018)
+    CLEAR gv_xref3.
+    IF <ls_rseg>-lfbnr IS NOT INITIAL
+    AND <ls_rseg>-lfgja IS NOT INITIAL
+    AND <ls_rseg>-lfpos IS NOT INITIAL.
+
+      gv_xref3 = <ls_rseg>-lfgja && <ls_rseg>-lfbnr && <ls_rseg>-lfpos.
+    ENDIF.
+
+    IF gv_xref3 IS NOT INITIAL.
+      SORT lt_bseg_1[] BY buzid awkey ebeln xref3.
+      READ TABLE lt_bseg_1 ASSIGNING <fs_bseg_1>
+      WITH KEY "buzid = 'W'"commented by sunil dt:10.10.2018
+      awkey = ls_bseg-awkey
+      ebeln = <ls_rseg>-ebeln
+      xref3 = gv_xref3
+      BINARY SEARCH.
+      IF sy-subrc = 0.
+        <fs_bseg_1>-flag = 'X'.
+        gs_final-ktosl   = <fs_bseg_1>-ktosl.
+
+        IF ls_rbkp-waers EQ 'INR'.
+          gs_final-dmbtr   = gs_final-wrbtr.
+        ELSE.
+          READ TABLE lt_bseg_summ INTO ls_bseg_summ WITH KEY awkey = ls_bseg-awkey
+          gjahr = ls_bseg-gjahr
+          ebeln = <ls_rseg>-ebeln
+          ebelp = <ls_rseg>-ebelp.
+          IF sy-subrc = 0.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-dmbtr   = ls_bseg_summ-dmbtr * -1 ."<fs_bseg_1>-dmbtr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-dmbtr   = ls_bseg_summ-dmbtr."<fs_bseg_1>-dmbtr.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+        lv_txgrp = <fs_bseg_1>-txgrp.
+        lv_belnr = <fs_bseg_1>-belnr.
+        lv_gjahr = <fs_bseg_1>-gjahr.
+
+        gs_final-fi_doc = <fs_bseg_1>-belnr.
+
+        CLEAR is_with.
+        READ TABLE it_with INTO is_with WITH KEY bukrs = <fs_bseg_1>-bukrs
+                                                 belnr = <fs_bseg_1>-belnr
+                                                 buzei = <fs_bseg_1>-buzei
+                                                 gjahr = <fs_bseg_1>-gjahr.
+        IF sy-subrc = 0.
+          gs_final-with_tax = is_with-wt_qbshh.
+        ENDIF.
+
+        CLEAR gs_final1.                            "RS:Added dt:04-12-2024.
+        READ TABLE gt_final INTO gs_final1 WITH KEY fi_doc = <fs_bseg_1>-belnr.
+        IF gs_final1-with_tax IS INITIAL.
+          READ TABLE lt_bseg_1 INTO DATA(ls_bseg_t) WITH KEY bukrs = <fs_bseg_1>-bukrs
+                                                             belnr = <fs_bseg_1>-belnr
+                                                             gjahr = <fs_bseg_1>-gjahr
+                                                             ktosl = 'WIT'.
+          IF sy-subrc = 0.
+            gs_final-with_tax = ls_bseg_t-wrbtr * -1.        "RS:end dt:04-12-2024.S
+          ENDIF.
+        ENDIF.
+        CLEAR gs_final1.
+        READ TABLE gt_final INTO gs_final1 WITH KEY fi_doc = <fs_bseg_1>-belnr.
+        IF gs_final1-vend_amt IS INITIAL.
+          CLEAR ls_bseg_1.
+          READ TABLE lt_bseg_1 INTO ls_bseg_1 WITH KEY belnr = gs_final-fi_doc
+                                                       awkey = ls_bseg-awkey
+                                                       gjahr = ls_bseg-gjahr
+                                                       koart = 'K'.
+          IF sy-subrc = 0.
+            IF <ls_rseg>-shkzg = 'S'.
+              gs_final-vend_amt = ls_bseg_1-dmbtr.
+            ELSEIF <ls_rseg>-shkzg = 'H'.
+              gs_final-vend_amt = ( ls_bseg_1-dmbtr ) * -1.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+        gs_final-prctr  = <fs_bseg_1>-prctr.
+        gs_final-busi_area = <fs_bseg_1>-gsber.
+        lv_tabix = sy-tabix.
+      ELSE.
+        PERFORM get_tax_data.   "Get tax line item data
+      ENDIF.
+    ELSE.
+      PERFORM get_tax_data.   "Get tax line item data
+    ENDIF.
+*--> End of changes
+
+** End of change by sunil.
+    CLEAR : ls_bset, lv_awkey.
+    CONCATENATE <ls_rseg>-belnr <ls_rseg>-gjahr INTO lv_awkey.
+    READ TABLE lt_bseg_1 INTO ls_bseg_1   WITH KEY  awkey = lv_awkey
+    bukrs = <ls_rseg>-bukrs
+    ebeln = <ls_rseg>-ebeln
+    ebelp = <ls_rseg>-ebelp
+    menge = <ls_rseg>-menge
+    matnr = <ls_rseg>-matnr
+    txgrp = lv_txgrp.
+    IF sy-subrc = 0.
+      READ TABLE lt_bset INTO ls_bset WITH KEY bukrs = ls_bseg_1-bukrs
+                                               belnr = ls_bseg_1-belnr
+                                               gjahr = ls_bseg_1-gjahr
+                                               txgrp = ls_bseg_1-txgrp.
+      IF sy-subrc = 0.
+        LOOP AT lt_bset INTO ls_bset FROM sy-tabix.
+          IF ls_bset-bukrs <> ls_bseg_1-bukrs OR ls_bset-belnr <> ls_bseg_1-belnr OR
+          ls_bset-gjahr <> ls_bseg_1-gjahr OR
+          ls_bset-txgrp <> ls_bseg_1-txgrp.
+            EXIT.
+          ENDIF.
+
+          IF ls_bset-kschl = 'JMOP'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-excise_amnt = ls_bset-hwste * -1.       "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-excise_amnt = ls_bset-hwste.       "Deductable
+            ENDIF.
+
+          ELSEIF ls_bset-kschl = 'JMIP'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-excise_amnt_nd = ls_bset-hwste * -1.    " Non Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-excise_amnt_nd = ls_bset-hwste.    " Non Deductable
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JVRD'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-vat_amnt  = ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-vat_amnt  = ls_bset-hwste.        "Deductable
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JVRN'.                " Non Deductable
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-vat_amnt_nd  =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-vat_amnt_nd  =  ls_bset-hwste.
+            ENDIF.
+
+          ELSEIF ls_bset-kschl = 'JVCS'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-cst_amnt  =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-cst_amnt  =  ls_bset-hwste.
+            ENDIF.
+
+          ELSEIF ls_bset-kschl = 'JIMD'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-import_amnt   =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-import_amnt   =  ls_bset-hwste.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JIMN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-import_non_ded   =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-import_non_ded   =  ls_bset-hwste.
+            ENDIF.
+
+********************For GST Taxes*******************************
+
+********deductable
+          ELSEIF ls_bset-kschl = 'JIIG'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jiig_amnt = ls_bset-hwste * -1.
+              gs_final-jiig_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jiig_amnt = ls_bset-hwste.
+              gs_final-jiig_per = ls_bset-kbetr.
+            ENDIF.
+
+*          gs_final-ded_per_f = gs_final-jiig_per.
+
+          ELSEIF ls_bset-kschl = 'JISG'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jisg_amnt = ls_bset-hwste * -1.
+              gs_final-jisg_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jisg_amnt = ls_bset-hwste.
+              gs_final-jisg_per = ls_bset-kbetr.
+            ENDIF.
+
+
+
+          ELSEIF ls_bset-kschl = 'JICG'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jicg_amnt = ls_bset-hwste * -1.
+              gs_final-jicg_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jicg_amnt = ls_bset-hwste.
+              gs_final-jicg_per = ls_bset-kbetr.
+            ENDIF.
+
+
+
+
+********Non deductable
+          ELSEIF ls_bset-kschl = 'JIIN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jiin_amnt = ls_bset-hwste * -1.
+              gs_final-jiin_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jiin_amnt = ls_bset-hwste.
+              gs_final-jiin_per = ls_bset-kbetr.
+            ENDIF.
+
+*          gs_final-non_ded_per_f = gs_final-jiin_per.
+
+          ELSEIF ls_bset-kschl = 'JISN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jisn_amnt = ls_bset-hwste * -1.
+              gs_final-jisn_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jisn_amnt = ls_bset-hwste.
+              gs_final-jisn_per = ls_bset-kbetr.
+            ENDIF.
+
+
+
+          ELSEIF ls_bset-kschl = 'JICN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jicn_amnt = ls_bset-hwste * -1.
+              gs_final-jicn_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jicn_amnt = ls_bset-hwste.
+              gs_final-jicn_per = ls_bset-kbetr.
+            ENDIF.
+
+*******RCM
+          ELSEIF ls_bset-kschl = 'JIIR'.
+*          ELSEIF ls_bset-kschl = 'ZIRI'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-ziri_amnt = ls_bset-hwste * -1.
+              gs_final-ziri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-ziri_amnt = ls_bset-hwste.
+              gs_final-ziri_per = ls_bset-kbetr.
+            ENDIF.
+
+*          gs_final-rcm_per_f =  gs_final-jiir_per.
+          ELSEIF ls_bset-kschl = 'JISR'.
+*          ELSEIF ls_bset-kschl = 'ZSRI'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zsri_amnt = ls_bset-hwste * -1.
+              gs_final-zsri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zsri_amnt = ls_bset-hwste.
+              gs_final-zsri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JICR'.
+*          ELSEIF ls_bset-kschl = 'ZCRI'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zcri_amnt = ls_bset-hwste * -1.
+              gs_final-zcri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zcri_amnt = ls_bset-hwste.
+              gs_final-zcri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+******** NON Deductable RCM
+          ELSEIF ls_bset-kschl = 'ZIRN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-ziri_amnt = ls_bset-hwste * -1.
+              gs_final-ziri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-ziri_amnt = ls_bset-hwste.
+              gs_final-ziri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'ZSRN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zsri_amnt = ls_bset-hwste * -1.
+              gs_final-zsri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zsri_amnt = ls_bset-hwste.
+              gs_final-zsri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'ZCRN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zcri_amnt = ls_bset-hwste * -1.
+              gs_final-zcri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zcri_amnt = ls_bset-hwste.
+              gs_final-zcri_per = ls_bset-kbetr.
+            ENDIF.
+          ENDIF.
+****
+****************rate per calculation
+          gs_final-ded_per_sum = gs_final-jicg_per + gs_final-jisg_per.
+          gs_final-non_ded_per_sum = gs_final-jicn_per + gs_final-jisn_per.
+          gs_final-rcm_per_sum = gs_final-jicr_per + gs_final-jisr_per.
+
+
+          IF gs_final-ded_per_sum IS NOT INITIAL.
+            gs_final-ded_per_sum = gs_final-ded_per_sum / 10.
+            gs_final-final_per = gs_final-ded_per_sum.
+
+          ELSEIF gs_final-jiig_per IS NOT INITIAL.
+            gs_final-final_per =  gs_final-jiig_per / 10.
+
+          ELSEIF gs_final-non_ded_per_sum IS NOT INITIAL.
+            gs_final-non_ded_per_sum = gs_final-non_ded_per_sum / 10.
+            gs_final-final_per = gs_final-non_ded_per_sum.
+          ELSEIF gs_final-jiin_per IS NOT INITIAL.
+            gs_final-final_per = gs_final-jiin_per / 10.
+
+          ELSEIF gs_final-rcm_per_sum IS NOT INITIAL.
+            gs_final-rcm_per_sum = gs_final-rcm_per_sum / 10.
+            gs_final-final_per = gs_final-rcm_per_sum.
+          ELSEIF gs_final-jiir_per IS NOT INITIAL.
+            gs_final-final_per = gs_final-jiir_per / 10.
+          ENDIF.
+
+        ENDLOOP.
+
+      ENDIF.
+    ELSE."added on 26.04.2018
+      READ TABLE lt_bset  TRANSPORTING NO FIELDS WITH KEY belnr = lv_belnr
+      gjahr = lv_gjahr
+      txgrp = lv_txgrp .
+      IF sy-subrc = 0.
+        LOOP AT lt_bset INTO ls_bset FROM sy-tabix.
+          IF ls_bset-belnr <> lv_belnr OR
+          ls_bset-gjahr <> lv_gjahr OR
+          ls_bset-txgrp <> lv_txgrp.
+            EXIT.
+          ENDIF.
+
+          IF ls_bset-kschl = 'JMOP'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-excise_amnt = ls_bset-hwste * -1.       "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-excise_amnt = ls_bset-hwste.       "Deductable
+            ENDIF.
+
+          ELSEIF ls_bset-kschl = 'JMIP'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-excise_amnt_nd = ls_bset-hwste * -1.    " Non Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-excise_amnt_nd = ls_bset-hwste.    " Non Deductable
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JVRD'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-vat_amnt  = ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-vat_amnt  = ls_bset-hwste.        "Deductable
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JVRN'.                " Non Deductable
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-vat_amnt_nd  =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-vat_amnt_nd  =  ls_bset-hwste.
+            ENDIF.
+
+
+
+          ELSEIF ls_bset-kschl = 'JVCS'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-cst_amnt  =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-cst_amnt  =  ls_bset-hwste.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JIMD'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-import_amnt   =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-import_amnt   =  ls_bset-hwste.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JIMN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-import_non_ded   =  ls_bset-hwste * -1.        "Deductable
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-import_non_ded   =  ls_bset-hwste.
+            ENDIF.
+
+********************For GST Taxes*******************************
+
+********deductable
+          ELSEIF ls_bset-kschl = 'JIIG'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jiig_amnt = ls_bset-hwste * -1.
+              gs_final-jiig_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jiig_amnt = ls_bset-hwste.
+              gs_final-jiig_per = ls_bset-kbetr.
+            ENDIF.
+
+*          gs_final-ded_per_f = gs_final-jiig_per.
+
+          ELSEIF ls_bset-kschl = 'JISG'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jisg_amnt = ls_bset-hwste * -1.
+              gs_final-jisg_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jisg_amnt = ls_bset-hwste.
+              gs_final-jisg_per = ls_bset-kbetr.
+            ENDIF.
+
+
+
+          ELSEIF ls_bset-kschl = 'JICG'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jicg_amnt = ls_bset-hwste * -1.
+              gs_final-jicg_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jicg_amnt = ls_bset-hwste.
+              gs_final-jicg_per = ls_bset-kbetr.
+            ENDIF.
+
+
+
+
+********Non deductable
+          ELSEIF ls_bset-kschl = 'JIIN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jiin_amnt = ls_bset-hwste * -1.
+              gs_final-jiin_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jiin_amnt = ls_bset-hwste.
+              gs_final-jiin_per = ls_bset-kbetr.
+            ENDIF.
+
+*          gs_final-non_ded_per_f = gs_final-jiin_per.
+
+          ELSEIF ls_bset-kschl = 'JISN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jisn_amnt = ls_bset-hwste * -1.
+              gs_final-jisn_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jisn_amnt = ls_bset-hwste.
+              gs_final-jisn_per = ls_bset-kbetr.
+            ENDIF.
+
+
+
+          ELSEIF ls_bset-kschl = 'JICN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-jicn_amnt = ls_bset-hwste * -1.
+              gs_final-jicn_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-jicn_amnt = ls_bset-hwste.
+              gs_final-jicn_per = ls_bset-kbetr.
+            ENDIF.
+
+*******RCM
+          ELSEIF ls_bset-kschl = 'JIIR'.
+*          ELSEIF ls_bset-kschl = 'ZIRI'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-ziri_amnt = ls_bset-hwste * -1.
+              gs_final-ziri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-ziri_amnt = ls_bset-hwste.
+              gs_final-ziri_per = ls_bset-kbetr.
+            ENDIF.
+
+*          gs_final-rcm_per_f =  gs_final-jiir_per.
+          ELSEIF ls_bset-kschl = 'JISR'.
+*          ELSEIF ls_bset-kschl = 'ZSRI'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zsri_amnt = ls_bset-hwste * -1.
+              gs_final-zsri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zsri_amnt = ls_bset-hwste.
+              gs_final-zsri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'JICR'.
+*          ELSEIF ls_bset-kschl = 'ZCRI'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zcri_amnt = ls_bset-hwste * -1.
+              gs_final-zcri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zcri_amnt = ls_bset-hwste.
+              gs_final-zcri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+******** NON Deductable RCM
+          ELSEIF ls_bset-kschl = 'ZIRN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-ziri_amnt = ls_bset-hwste * -1.
+              gs_final-ziri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-ziri_amnt = ls_bset-hwste.
+              gs_final-ziri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'ZSRN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zsri_amnt = ls_bset-hwste * -1.
+              gs_final-zsri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zsri_amnt = ls_bset-hwste.
+              gs_final-zsri_per = ls_bset-kbetr.
+            ENDIF.
+
+
+          ELSEIF ls_bset-kschl = 'ZCRN'.
+            IF <ls_rseg>-shkzg = 'H'.
+              gs_final-zcri_amnt = ls_bset-hwste * -1.
+              gs_final-zcri_per = ls_bset-kbetr * -1.
+            ELSEIF <ls_rseg>-shkzg = 'S'.
+              gs_final-zcri_amnt = ls_bset-hwste.
+              gs_final-zcri_per = ls_bset-kbetr.
+            ENDIF.
+          ENDIF.
+****
+****************rate per calculation
+          gs_final-ded_per_sum = gs_final-jicg_per + gs_final-jisg_per.
+          gs_final-non_ded_per_sum = gs_final-jicn_per + gs_final-jisn_per.
+          gs_final-rcm_per_sum = gs_final-jicr_per + gs_final-jisr_per.
+
+
+          IF gs_final-ded_per_sum IS NOT INITIAL.
+            gs_final-ded_per_sum = gs_final-ded_per_sum / 10.
+            gs_final-final_per = gs_final-ded_per_sum.
+
+          ELSEIF gs_final-jiig_per IS NOT INITIAL.
+            gs_final-final_per =  gs_final-jiig_per / 10.
+
+          ELSEIF gs_final-non_ded_per_sum IS NOT INITIAL.
+            gs_final-non_ded_per_sum = gs_final-non_ded_per_sum / 10.
+            gs_final-final_per = gs_final-non_ded_per_sum.
+          ELSEIF gs_final-jiin_per IS NOT INITIAL.
+            gs_final-final_per = gs_final-jiin_per / 10.
+
+          ELSEIF gs_final-rcm_per_sum IS NOT INITIAL.
+            gs_final-rcm_per_sum = gs_final-rcm_per_sum / 10.
+            gs_final-final_per = gs_final-rcm_per_sum.
+          ELSEIF gs_final-jiir_per IS NOT INITIAL.
+            gs_final-final_per = gs_final-jiir_per / 10.
+          ENDIF.
+
+        ENDLOOP.
+      ENDIF.
+    ENDIF.
+
+    gs_final-j_1bbranch = ls_bseg_1-bupla."added on 10.10.2018.
+
+****END Of comment
+    READ TABLE lt_bkpf ASSIGNING <fs_bkpf> WITH KEY belnr = gs_final-fi_doc.
+    IF sy-subrc = 0.
+      gs_final-xblnr = <fs_bkpf>-xblnr.
+      gs_final-bktxt = <fs_bkpf>-bktxt.
+      gs_final-XBLNR_ALT = <fs_bkpf>-XBLNR_ALT.
+    ENDIF.
+
+    gs_final-tot_gst = gs_final-jiig_amnt + gs_final-jicg_amnt + gs_final-jisg_amnt +
+                       gs_final-jiin_amnt + gs_final-jicn_amnt + gs_final-jisn_amnt +
+                       gs_final-ziri_amnt + gs_final-zcri_amnt + gs_final-zsri_amnt.
+
+*    READ TABLE lt_bset ASSIGNING FIELD-SYMBOL(<ls_bset>) WITH KEY belnr = gs_final-fi_doc
+*                                                                  gjahr = <ls_rseg>-gjahr
+*                                                                  txgrp = lv_txgrp.
+*    IF sy-subrc = 0.
+*      gs_final-dmbtr = <ls_bset>-hwbas.
+*    ENDIF.
+
+    CLEAR: lv_flag,lv_txgrp,lv_tabix.
+    CLEAR ls_bset.  ""<<<<<<<<<<<<<<<<<
+*****************************************************************
+    APPEND gs_final TO gt_final.
+    CLEAR: gs_final,ls_sakt,ls_rbco,ls_anlh.
+  ENDLOOP.
+  UNASSIGN <ls_rseg>.
+  SORT gt_final BY belnr.
+*********************************************************************
+  IF gt_final[] IS NOT INITIAL.
+    PERFORM field_cat.
+    PERFORM alv_disp.
+  ELSE.
+    MESSAGE 'No Data Found' TYPE 'I'.
+  ENDIF.
+*&---------------------------------------------------------------------*
+*& Form get_tax_data
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM get_tax_data .
+
+  SORT lt_bseg_1[] BY awkey ebeln ebelp txgrp.
+  READ TABLE lt_bseg_1 ASSIGNING <fs_bseg_1> WITH KEY awkey = ls_bseg-awkey
+  gjahr = ls_bseg-gjahr
+  ebeln = <ls_rseg>-ebeln
+  ebelp = <ls_rseg>-ebelp
+  txgrp = <ls_rseg>-buzei" added on 06.07.2018
+  flag = abap_false.
+  IF sy-subrc = 0.
+    <fs_bseg_1>-flag = 'X'.
+    gs_final-ktosl   = <fs_bseg_1>-ktosl.
+
+    IF ls_rbkp-waers EQ 'INR'.
+      gs_final-dmbtr   = gs_final-wrbtr.
+    ELSE.
+      READ TABLE lt_bseg_summ INTO ls_bseg_summ WITH KEY awkey = ls_bseg-awkey
+      gjahr = ls_bseg-gjahr
+      ebeln = <ls_rseg>-ebeln
+      ebelp = <ls_rseg>-ebelp.
+      IF sy-subrc = 0.
+        IF <ls_rseg>-shkzg = 'H'.
+          gs_final-dmbtr   = ls_bseg_summ-dmbtr * -1 ."<fs_bseg_1>-dmbtr * -1.
+        ELSEIF <ls_rseg>-shkzg = 'S'.
+          gs_final-dmbtr   = ls_bseg_summ-dmbtr."<fs_bseg_1>-dmbtr.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    lv_txgrp = <fs_bseg_1>-txgrp.
+    lv_belnr = <fs_bseg_1>-belnr.
+    lv_gjahr = <fs_bseg_1>-gjahr.
+
+    gs_final-fi_doc   = <fs_bseg_1>-belnr.
+
+    CLEAR gs_final1.
+    READ TABLE gt_final INTO gs_final1 WITH KEY fi_doc = <fs_bseg_1>-belnr.
+    IF gs_final1-with_tax IS INITIAL.
+
+
+      CLEAR is_with.
+      READ TABLE it_with INTO is_with WITH KEY bukrs = <fs_bseg_1>-bukrs
+                                               belnr = <fs_bseg_1>-belnr
+*                                             buzei = <fs_bseg_1>-buzei
+                                               gjahr = <fs_bseg_1>-gjahr.
+      IF sy-subrc = 0.
+        gs_final-with_tax = is_with-wt_qbshh.
+      ELSE.
+        READ TABLE lt_bseg_1 INTO DATA(ls_bseg_t) WITH KEY bukrs = <fs_bseg_1>-bukrs
+              belnr = <fs_bseg_1>-belnr
+              gjahr = <fs_bseg_1>-gjahr
+              ktosl = 'WIT'.
+        IF sy-subrc = 0.
+          gs_final-with_tax = ls_bseg_t-wrbtr.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    IF gs_final1-vend_amt IS INITIAL.
+      CLEAR ls_bseg_1.
+      READ TABLE lt_bseg_1 INTO ls_bseg_1 WITH KEY belnr = gs_final-fi_doc
+      awkey = ls_bseg-awkey
+      gjahr = ls_bseg-gjahr
+      koart = 'K'.
+      IF sy-subrc = 0.
+        IF <ls_rseg>-shkzg = 'S'.
+          gs_final-vend_amt = ls_bseg_1-dmbtr.
+        ELSEIF <ls_rseg>-shkzg = 'H'.
+          gs_final-vend_amt = ( ls_bseg_1-dmbtr ) * -1.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+
+    gs_final-prctr = <fs_bseg_1>-prctr.
+    gs_final-busi_area = <fs_bseg_1>-gsber.
+    lv_tabix = sy-tabix.
+  ELSEIF gs_final-fi_doc IS INITIAL.              " Added on 10_08_2017
+    CLEAR ls_bseg_2.
+*      READ TABLE lt_bseg_2 INTO ls_bseg_2 WITH KEY  belnr_n = <ls_rseg>-belnr
+*                                                    gjahr = <ls_rseg>-gjahr
+*                                                    ebeln = <ls_rseg>-ebeln
+*                                                    ebelp = <ls_rseg>-ebelp.
+*      IF sy-subrc = 0.
+*        gs_final-fi_doc     = ls_bseg_2-belnr.
+*        gs_final-prctr      = ls_bseg_2-prctr.
+*        gs_final-busi_area  = ls_bseg_2-gsber.
+*      ENDIF.
+
+    SORT lt_bseg_2 BY belnr_n gjahr ebeln ebelp txgrp.
+    READ TABLE lt_bseg_2 ASSIGNING FIELD-SYMBOL(<ls_bseg_2>) WITH KEY  belnr_n = <ls_rseg>-belnr
+    gjahr = <ls_rseg>-gjahr
+    ebeln = <ls_rseg>-ebeln
+    ebelp = <ls_rseg>-ebelp
+    flag  = abap_false.
+    IF sy-subrc = 0.
+      <ls_bseg_2>-flag = 'X'.
+      gs_final-fi_doc     = <ls_bseg_2>-belnr.
+      gs_final-prctr      = <ls_bseg_2>-prctr.
+      gs_final-busi_area  = <ls_bseg_2>-gsber.
+
+
+      IF ls_rbkp-waers EQ 'INR'.
+        gs_final-dmbtr   = gs_final-wrbtr.
+      ELSE.
+        READ TABLE lt_bseg_summ INTO ls_bseg_summ WITH KEY awkey = <ls_bseg_2>-awkey
+        gjahr = <ls_bseg_2>-gjahr
+        ebeln = <ls_rseg>-ebeln
+        ebelp = <ls_rseg>-ebelp.
+        IF sy-subrc = 0.
+          IF <ls_rseg>-shkzg = 'H'.
+            gs_final-dmbtr   = ls_bseg_summ-dmbtr * -1 .
+          ELSEIF <ls_rseg>-shkzg = 'S'.
+            gs_final-dmbtr   = ls_bseg_summ-dmbtr.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      lv_txgrp = <ls_bseg_2>-txgrp.
+      lv_belnr = <ls_bseg_2>-belnr.
+      lv_gjahr = <ls_bseg_2>-gjahr.
+
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form alv_disp
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM alv_disp .
+
+  gs_layout-zebra                = 'X'.
+  gs_layout-detail_popup         = 'X'.
+  gs_layout-detail_initial_lines = 'X'.
+  gs_layout-colwidth_optimize    = 'X'.
+
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+*   I_INTERFACE_CHECK                 = ' '
+*   I_BYPASSING_BUFFER                = ' '
+*   I_BUFFER_ACTIVE                   = ' '
+*   I_CALLBACK_PROGRAM                = ' '
+*   I_CALLBACK_PF_STATUS_SET          = ' '
+*   I_CALLBACK_USER_COMMAND           = ' '
+*   I_CALLBACK_TOP_OF_PAGE            = ' '
+*   I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*   I_CALLBACK_HTML_END_OF_LIST       = ' '
+*   I_STRUCTURE_NAME                  =
+*   I_BACKGROUND_ID                   = ' '
+*   I_GRID_TITLE                      =
+*   I_GRID_SETTINGS                   =
+*   IS_LAYOUT                         =
+   IT_FIELDCAT                       = gt_fieldcat
+*   IT_EXCLUDING                      =
+*   IT_SPECIAL_GROUPS                 =
+*   IT_SORT                           =
+*   IT_FILTER                         =
+*   IS_SEL_HIDE                       =
+*   I_DEFAULT                         = 'X'
+*   I_SAVE                            = ' '
+*   IS_VARIANT                        =
+*   IT_EVENTS                         =
+*   IT_EVENT_EXIT                     =
+*   IS_PRINT                          =
+*   IS_REPREP_ID                      =
+*   I_SCREEN_START_COLUMN             = 0
+*   I_SCREEN_START_LINE               = 0
+*   I_SCREEN_END_COLUMN               = 0
+*   I_SCREEN_END_LINE                 = 0
+*   I_HTML_HEIGHT_TOP                 = 0
+*   I_HTML_HEIGHT_END                 = 0
+*   IT_ALV_GRAPHICS                   =
+*   IT_HYPERLINK                      =
+*   IT_ADD_FIELDCAT                   =
+*   IT_EXCEPT_QINFO                   =
+*   IR_SALV_FULLSCREEN_ADAPTER        =
+*   O_PREVIOUS_SRAL_HANDLER           =
+* IMPORTING
+*   E_EXIT_CAUSED_BY_CALLER           =
+*   ES_EXIT_CAUSED_BY_USER            =
+  TABLES
+    t_outtab                          = gt_final[]
+ EXCEPTIONS
+   PROGRAM_ERROR                     = 1
+   OTHERS                            = 2
+          .
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
+
+ENDFORM.
+
+FORM zstandard USING rt_extab TYPE slis_t_extab.
+  SET PF-STATUS 'ZSTANDARD'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form field_cat
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM field_cat .
+
+  DATA: lv_counter TYPE i.
+**************************************************************
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'bukrs'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'COMPANY code'. "'Vendor code'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'GSTIN'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'COMPANY GSTNO'. "'Vendor code'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'J_1BBRANCH'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-036.  "'Business Place
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'WERKS'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-020.  "'Plant
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'PLANT_NAME'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-040.  "'Plant Desc.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'MJAHR'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-067.  "'Material Doc Year
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'INVOICETYPE'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'INVOICETYPE'.  "'INVOICETYPE
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'BELNR'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-003. "'IV Document No
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'BLART'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-026. "'Document type
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'DOCUMENTTYPEDESC'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'DOCUMENTTYPEDESC'. "'DOCUMENTTYPEDESC
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'buzei'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'LINENO'. "'LINENO
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'FI_DOC'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-029.    "FI Document No.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'XBLNR_ALT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'ODNNO'.    "ODNNO
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'REFERENCE_INVOICE'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'REFERENCE_INVOICE'.    "REFERENCE_INVOICE
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'REFERENCE_INVOICE_DATE'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'REFERENCE_INVOICE_DATE'.    "REFERENCE_INVOICE_DATE
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'EBELN'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'ORDER no'.  "'order no
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'VEND_INV'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'bill no'. "'bill no.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'VEND_INV_DT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-009. "'Vendor Invoice date.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'BUDAT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-023. "'Posting date
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'VENDOR'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-002. "'Vendor code'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'V_NAME1'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-004. "'Vendor Name'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'VEN_GSTIN'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-060. "'Vendor GSTIN'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'VEN_CLASS_DESC'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-043. "'Vendor Classification'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'REGIO'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-038. "'Vendor Region'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'BEZEI'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-039. "'Vendor Region Desc.'.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'PURCHASETYPE'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'PURCHASETYPE'. "'PURCHASETYPE
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'type'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'type'. "'type
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'DESCRIPTION'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'DESCRIPTION'. "'DESCRIPTION
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'MEINS'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-013. "'Base Unit of Measure UOM
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'MENGE'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-012. "'Quantity
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'unit_cost'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'unit_cost'. "'unit_cost
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.      "Amount in Local Currency
+  gs_fieldcat-fieldname  = 'DMBTR'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-055.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+  "CSGTGLACC  SGSTGLACC IGSTGLACC
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'unpland_cst'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'unpland_cst'. "'unpland_cst
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+*  final_per
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'FINAL_PER'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.    " Rate Per
+  gs_fieldcat-seltext_l  = TEXT-061.
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'JIIG_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-033.    " JIIG
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'JICG_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-045.    " JICG
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'JISG_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-044.    " JISG
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'JIIN_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-046.    " JIIN
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'JICN_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-048.    " JICN
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'JISN_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-047.    " JISN
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'ZIRI_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-049.    " ZIRI
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'ZCRI_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-051.    " ZCRI
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'ZSRI_AMNT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-050.    " ZSRI
+*  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'TOT_GST'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Total GST'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-do_sum    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'TT_amt'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'TT_amt '. "'TT_amt
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'HSN_CODE'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-062. "'HSN Code
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'TRN_nme'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'TRN_nme'. "'TRANSACTION CODE DEC.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'MATHS_COD'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'MATHS_COD'. "'MATHS CODE.
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'TAX_CODE'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-016. "'Tax Code
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'TAX_DESC'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = TEXT-017. "'Tax Description
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'nplnr'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'NETWORK'. "'NETWORK
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'KTEXT'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'NETWORK NAME'. "'NETWORK NAME
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'vornr'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'ACTIVITY'. "'ACTIVITY
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'ltxa1'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'ACTIVITY NAME'. "'ACTIVITY name
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'POSID'. "POSID
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'WBSELEMENT'. "'WBSELEMENT
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'POST1'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'WBSELEMENT NAME'. "'WBSELEMENT NAME
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  lv_counter = lv_counter + 1.
+  gs_fieldcat-col_pos    = lv_counter.
+  gs_fieldcat-fieldname  = 'POSKI'.
+  gs_fieldcat-tabname    = 'GT_FINAL'.
+  gs_fieldcat-seltext_l  = 'POSID'. "'POSID
+  gs_fieldcat-no_zero    = 'X'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+***************************************************************************************************************************************************
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'VAT_NO'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-005. "'TIN No. (VAT Reg.No.)'.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'J_1ICSTNO'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-006. "'CST No.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'J_1IPANNO'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-007. "'Suppliers PAN No.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'MATNR'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-010. "'Material
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'MAT_DESC'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-011. "'Material Description
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'SAKNR'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'G/L Account'.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'GL_DESC'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'G/L Description'.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'ANLN1'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'Asset'.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'ASS_DESC'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'Asset Description'.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'MAT_GRP'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-025. "'Material Group
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'RATE'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-014. "'RATE = rseg-wrbtr / rseg-Qty
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'WRBTR'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-015. "'Basic Amount
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'BSTYP'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'PO Category '.  "'PO
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'EKGRP'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'Purchase Group '.  "'PO
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'BSART'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-070.  "'PO Date
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'PO_DATE'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-019.  "'PO Date
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'MBLNR'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-066.  "'Material Doc NO
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'REF'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'Delivery Note'.  "Delivery Note
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'GRN_DATE'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-068.  "'GRN Posting Date
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'PLANT_REGIO'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-041.  "'Plant REGIO.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'PLANT_REGIO_DESC'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-042.  "'Plant REGIO Desc.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'PLANT_GSTIN'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-037.  "'Plant GSTIN
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'BUSI_AREA'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-021.  "'Business Area
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'PRCTR'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-022.  "'Profit Center
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'CPUDT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'Entry Date'.
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'XBLNR'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'Invoice Reference No'. "'
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'SHKZG'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-027. "'Credit/debit indicator
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'USNAM'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-024. "'User Name
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'BKTXT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'Header Text'. "'Document type
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.      "Amount in Local Currency
+*  gs_fieldcat-fieldname  = 'WITH_TAX'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = 'TDS Amount'.
+*  gs_fieldcat-do_sum    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'VEND_AMT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-028. "'Vendor Amount
+*  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'EXCISE_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.        "Excise Amount
+*  gs_fieldcat-seltext_l  = TEXT-030.
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'EXCISE_AMNT_ND'.  "Excise Amount Non deductable
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-056.
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'VAT_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.    "VAT Amount
+*  gs_fieldcat-seltext_l  = TEXT-032.
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'VAT_AMNT_ND'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.    "VAT Amount Non Deductable
+*  gs_fieldcat-seltext_l  = TEXT-057.
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'CST_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.    "CST AMOUNT
+*  gs_fieldcat-seltext_l  = TEXT-034.
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+****************************
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'ZCRN_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-065.    " ZCRN
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'ZSRN_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-064.    " ZSRN
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'ZIRN_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-063.    " ZIRN
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+***************************
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'JCDB_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-052.    " JCDB
+*  gs_fieldcat-no_out    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+****  lv_counter = lv_counter + 1.
+****  gs_fieldcat-col_pos    = lv_counter.
+****  gs_fieldcat-fieldname  = 'JISN_AMNT'.
+****  gs_fieldcat-tabname    = 'GT_FINAL'.
+****  gs_fieldcat-seltext_l  = TEXT-047.    " JISN
+*****  gs_fieldcat-no_zero    = 'X'.
+****  APPEND gs_fieldcat TO gt_fieldcat.
+****  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'JEDB_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-053.    " JEDB
+*  gs_fieldcat-no_out    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'JSDB_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-054.    " JSDB
+*  gs_fieldcat-no_out    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'IMPORT_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.      " JIMD
+*  gs_fieldcat-seltext_l  = TEXT-058.
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'IMPORT_NON_DED'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-059.
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+*
+*  lv_counter = lv_counter + 1.
+*  gs_fieldcat-col_pos    = lv_counter.
+*  gs_fieldcat-fieldname  = 'DIFF_AMNT'.
+*  gs_fieldcat-tabname    = 'GT_FINAL'.
+*  gs_fieldcat-seltext_l  = TEXT-069.      "Difference Amount = ( Vendor Amnt - Base Amnt + Taxes )
+**  gs_fieldcat-no_zero    = 'X'.
+*  APPEND gs_fieldcat TO gt_fieldcat.
+*  CLEAR gs_fieldcat.
+
+
+
+ENDFORM.
