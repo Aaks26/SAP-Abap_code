@@ -1,0 +1,1235 @@
+*&---------------------------------------------------------------------*
+*& Report ZMM_GSTR1
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmm_gstr1.
+************************************************************************
+* Structures for Tables
+************************************************************************
+tables :rbkp.
+" Structure for RBKP (Header)
+TYPES: BEGIN OF rbkp,
+         bukrs TYPE bukrs,    " Company Code
+         belnr TYPE belnr_d,  " Accounting Document Number
+         gjahr TYPE gjahr,    " Fiscal Year
+         lifnr TYPE lifnr,    " Vendor Code
+         bupla TYPE bupla,    " Business Place
+         bldat TYPE bldat,    " Document Date
+         xblnr TYPE xblnr,    " Reference Document Number
+         budat TYPE budat,    " Posting Date
+         tcode TYPE tcode,    " Transaction Code
+         blart TYPE blart,    " Document Type
+       END OF rbkp.
+
+" Structure for RSEG (Line Item)
+TYPES: BEGIN OF rseg,
+         belnr TYPE belnr_d,  " Accounting Document Number
+         gjahr TYPE gjahr,    " Fiscal Year
+         bukrs TYPE bukrs,    " Company Code
+         werks TYPE werks_d,  " Plant
+         matnr TYPE matnr,    " Material
+         menge TYPE menge_d,  " Quantity
+         meins TYPE meins,    " Unit of Measure
+         wrbtr TYPE wrbtr,    " Amount
+         ebeln TYPE ebeln,    " Purchase Order Number
+         buzei TYPE rblgp,
+       END OF rseg.
+
+" Structure for T001W (Plant)
+TYPES: BEGIN OF t001w,
+         werks TYPE werks_d,  " Plant Code
+         name1 TYPE name1,    " Plant Name
+       END OF t001w.
+
+" Structure for LFA1 (Vendor)
+TYPES: BEGIN OF lfa1,
+         lifnr TYPE lifnr,    " Vendor Code
+         name1 TYPE name1,    " Vendor Name
+         stcd3 TYPE stcd3,    " Vendor GST Number
+         land1 TYPE land1,    " Country Key
+         regio TYPE regio,    " Region (State Code)
+       END OF lfa1.
+
+" Structure for J_1BBRANCH (GSTInfo)
+TYPES: BEGIN OF j_1bbranch ,
+         gstin  TYPE j_1bbranch-gstin,  " GST Identification Number
+         branch TYPE j_1bbranch-branch, " Business Place
+         bukrs  TYPE bukrs,
+       END OF j_1bbranch .
+
+" Structure for BSET (Tax)
+TYPES: BEGIN OF bset ,
+         belnr TYPE belnr_d,  " Accounting Document Number
+         gjahr TYPE gjahr,    " Fiscal Year
+         bukrs TYPE bukrs,    " Company Code
+         mwskz TYPE mwskz,    " Tax Code
+         kbetr TYPE kbetr,    " Tax Amount or Percentage
+         txgrp TYPE txgrp,    " Tax Group
+       END OF bset .
+
+" Structure for BKPF (AccountingDoc)
+TYPES: BEGIN OF bkpf,
+         belnr TYPE belnr_d,  " Accounting Document Number
+         gjahr TYPE gjahr,    " Fiscal Year
+         bukrs TYPE bukrs,    " Company Code
+         blart TYPE blart,    " Document Type
+  XBLNR_ALT TYPE XBLNR_ALT,
+       END OF bkpf.
+
+" Structure for VBRK (BillingDoc)
+TYPES: BEGIN OF vbrk,
+         vbeln TYPE vbeln,    " Billing Document Number
+       END OF vbrk.
+
+" Structure for EKKO (PurchaseOrder)
+TYPES: BEGIN OF ekko,
+         ebeln TYPE ebeln,    " Purchase Order Number
+         bstyp TYPE bstyp,    " Purchase Order Type
+       END OF ekko.
+
+" Structure for EKPO (PurchaseOrderItem)
+TYPES: BEGIN OF ekpo,
+         ebeln TYPE ebeln,    " Purchase Order Number
+         matnr TYPE matnr,    " Material
+       END OF ekpo.
+
+" Structure for T005S (StateMaster)
+TYPES: BEGIN OF t005s,
+         land1 TYPE land1,    " Country Key
+         bland TYPE regio,    " State Code
+         herbl TYPE herbl,    " State Name
+       END OF t005s.
+
+" Structure for T161 (DocumentType)
+TYPES: BEGIN OF t161,
+         bstyp TYPE bstyp,    " Purchase Order Type
+         bsart TYPE bsart,    " Document Type Description
+       END OF t161.
+
+*****************************************************************
+" Final Output Structure
+TYPES: BEGIN OF ty_output,
+         company_code           TYPE bukrs,
+         company_gst_no         TYPE j_1bbranch-gstin,
+         business_place         TYPE j_1bbranch-branch,
+         plant                  TYPE werks_d,
+         plant_name             TYPE name1,
+         fiscal_year            TYPE gjahr,
+         invoice_type           TYPE char10,
+         invoice_no             TYPE belnr_d,
+         document_type          TYPE char10,
+         document_type_desc     TYPE char20,
+         lineNO                 TYPE rblgp,
+         fi_invoice_no          TYPE belnr_d,
+         odnno                  TYPE i,
+         reference_invoice      TYPE xblnr,
+         reference_invoice_date TYPE bldat,
+         order_no               TYPE ebeln,
+         bill_no                TYPE vbeln,
+         bill_date              TYPE bldat,
+         posting_date           TYPE budat,
+         vendor_code            TYPE lifnr,
+         vendor_name            TYPE name1,
+         vendor_gst_no          TYPE stcd3,
+         gst_vendor_type        TYPE char20,
+         vendor_state_code      TYPE regio,
+         vendor_state_name      TYPE herbl,
+         purchase_type          TYPE char20,
+         type                   TYPE i,
+         description            TYPE char50,
+         uom                    TYPE i,
+         quantity               TYPE menge_d,
+         unit                   TYPE meins,
+         amount                 TYPE wrbtr,
+         csGTGLacc              TYPE i,
+         SGStglacc              TYPE i,
+         igstglacc              TYPE i,
+         unplad_costs           TYPE i,
+         gst_credit             TYPE char5,
+         cgst_rate              TYPE p DECIMALS 2,
+         cgst_amount            TYPE p DECIMALS 2,
+         sgst_rate              TYPE p DECIMALS 2,
+         igst_rate              TYPE p DECIMALS 2,
+         sgst_amount            TYPE p DECIMALS 2,
+         igst_amount            TYPE p DECIMALS 2,
+         rcmcgstamount          TYPE i,
+         rcmsgstamount          TYPE i,
+         rcmigstamount          TYPE i,
+         ndcgstamount           TYPE i,
+         ndsgstamount           TYPE i,
+         ndigstamount           TYPE i,
+         totalgst               TYPE i,
+         totalamount            TYPE i,
+         tranhsncode            TYPE i,
+         tranhsnname            TYPE char20,
+         masthsncode            TYPE char20,
+         tax_code               TYPE char10,
+         taxcodedesc            TYPE char20,
+         network                TYPE i,
+         networkname            TYPE char20,
+         activity               TYPE i,
+         activityname           TYPE char40,
+         wbselement             TYPE char50,
+         wbselementname         TYPE char50,
+         posid                  TYPE char30,
+         prjfixedasset          TYPE i,
+         prjfixedassetname      TYPE char50,
+         accountgroup           TYPE i,
+         accountgroupname       TYPE char50,
+         itc_type               TYPE char30,
+         eligibility            TYPE char30,
+         decision               TYPE char30,
+         gstr_3b_month          TYPE budat,
+         itcstatus              TYPE char20,
+         attachment             TYPE char200,
+         material               TYPE matnr,
+       END OF ty_output.
+*************************************************************
+" Internal Tables and Work Areas
+DATA: it_RBKP       TYPE TABLE OF rbkp,
+      wa_RBKP       TYPE rbkp,
+      it_RSEG       TYPE TABLE OF rseg,
+      wa_RSEG       TYPE rseg,
+      it_T001W      TYPE TABLE OF t001w,
+      wa_T001W      TYPE t001w,
+      it_LFA1       TYPE TABLE OF lfa1,
+      wa_LFA1       TYPE lfa1,
+      it_J_1BBRANCH TYPE TABLE OF j_1bbranch,
+      wa_J_1BBRANCH TYPE j_1bbranch,
+      it_BSET       TYPE TABLE OF bset,
+      wa_BSET       TYPE bset,
+      it_BKPF       TYPE TABLE  OF bkpf,
+      wa_BKPF       TYPE bkpf,
+      it_VBRK       TYPE TABLE OF vbrk,
+      wa_VBRK       TYPE vbrk,
+      it_EKKO       TYPE TABLE  OF ekko,
+      wa_EKKO       TYPE ekko,
+      it_T005S      TYPE TABLE  OF t005s,
+      wa_T005S      TYPE t005s,
+      it_T161       TYPE TABLE  OF t161,
+      wa_T161       TYPE t161,
+      it_output     TYPE TABLE OF ty_output,
+      wa_output     TYPE ty_output.
+*      lt_fieldcat   TYPE slis_t_fieldcat_alv,
+*      ls_fieldcat   TYPE slis_fieldcat_alv.
+
+
+
+******************************
+* Selection Screen *
+******************************
+
+SELECT-OPTIONS : s_cmp    for rbkp-bukrs ,
+                S_budat for rbkp-BUDAT OBLIGATORY,
+                s_vendor for rbkp-lifnr .
+
+******************************
+*    Start-of-Selection      *
+******************************
+START-OF-SELECTION.
+
+  " Fetch Header Data
+  SELECT bukrs belnr gjahr lifnr bupla bldat xblnr budat tcode blart
+    INTO TABLE it_rbkp
+    FROM rbkp
+    WHERE bukrs in s_cmp
+      AND lifnr in s_vendor
+    AND budat in S_budat.
+
+  " Fetch Line Item Data
+  SELECT belnr gjahr bukrs werks matnr menge meins wrbtr buzei
+    INTO TABLE it_rseg
+    FROM rseg
+    FOR ALL ENTRIES IN it_rbkp
+    WHERE belnr = it_rbkp-belnr
+      AND gjahr = it_rbkp-gjahr
+      AND bukrs = it_rbkp-bukrs.
+
+  " Fetch Tax Data
+  SELECT belnr gjahr bukrs mwskz kbetr txgrp
+    INTO TABLE it_bset
+    FROM bset
+    FOR ALL ENTRIES IN it_rbkp
+    WHERE belnr = it_rbkp-belnr
+      AND gjahr = it_rbkp-gjahr
+      AND bukrs = it_rbkp-bukrs.
+
+  " Fetch Vendor Data
+  SELECT lifnr name1 stcd3 land1 regio
+    INTO TABLE it_lfa1
+    FROM lfa1
+    FOR ALL ENTRIES IN it_rbkp
+    WHERE lifnr = it_rbkp-lifnr.
+
+  " Fetch Plant Data
+  SELECT werks name1
+    INTO TABLE it_t001w
+    FROM t001w
+    FOR ALL ENTRIES IN it_rseg
+    WHERE werks = it_rseg-werks.
+
+  " Fetch State Master Data
+  SELECT land1 bland herbl
+    INTO TABLE it_t005s
+    FROM t005s
+    FOR ALL ENTRIES IN it_lfa1
+    WHERE land1 = it_lfa1-land1
+      AND bland = it_lfa1-regio.
+
+  SELECT gstin branch bukrs
+    INTO TABLE it_j_1bbranch
+    FROM j_1bbranch
+    FOR ALL ENTRIES IN it_rbkp
+    WHERE bukrs = it_rbkp-bukrs
+    AND branch = it_rbkp-bupla.
+
+*********************************
+* Loop Through Data and Process *
+*********************************
+  " Loop Through Header Records (RBKP)
+  LOOP AT it_rbkp INTO wa_rbkp.
+    " Fetch associated Line Item (RSEG) details
+    LOOP AT it_rseg INTO wa_rseg WHERE belnr = wa_rbkp-belnr AND gjahr = wa_rbkp-gjahr AND bukrs = wa_rbkp-bukrs.
+      " Fetch Plant (T001W) details
+      READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_rseg-werks.
+
+      " Fetch Vendor (LFA1) details
+      READ TABLE it_lfa1 INTO wa_lfa1 WITH KEY lifnr = wa_rbkp-lifnr.
+
+      " Fetch Tax (BSET) details
+      READ TABLE it_bset INTO wa_bset WITH KEY belnr = wa_rbkp-belnr gjahr = wa_rbkp-gjahr bukrs = wa_rbkp-bukrs.
+
+      " Fetch GST Information (J_1BBRANCH)
+      READ TABLE it_j_1bbranch INTO wa_j_1bbranch WITH KEY branch = wa_rbkp-bupla.
+
+      " Fetch State Master (T005S) details
+      READ TABLE it_t005s INTO wa_t005s WITH KEY land1 = wa_lfa1-land1 bland = wa_lfa1-regio.
+
+      " Initialize Output Work Area
+      CLEAR wa_output.
+
+******************************************************************************************************
+      " Populate Output Structure Fields
+      wa_output-company_code           = wa_rbkp-bukrs.
+      wa_output-company_gst_no         = wa_j_1bbranch-gstin.
+      wa_output-business_place         = wa_j_1bbranch-branch.
+      wa_output-plant                  = wa_rseg-werks.
+      wa_output-plant_name             = wa_t001w-name1.
+      wa_output-fiscal_year            = wa_rbkp-gjahr.
+**********Invoice Type Logic****************************************************************************
+      IF wa_bset-mwskz = 'B1' OR wa_bset-mwskz = 'B2' OR wa_bset-mwskz = 'C1' OR wa_bset-mwskz = 'C2'.
+        wa_output-invoice_type = 'REGULAR'.
+      ELSEIF wa_bset-mwskz = 'K1' OR wa_bset-mwskz = 'M1'.
+        wa_output-invoice_type = 'RCM'.
+      ELSE.
+        wa_output-invoice_type = 'UNKNOWN'.
+      ENDIF.
+*******************invoice number***********************************
+      wa_output-invoice_no             = wa_rbkp-belnr.
+************************Document Type Logic****************************
+*      IF wa_rbkp-tcode = 'MIR7'.
+*        wa_output-document_type = 'KG'.
+*      ELSEIF wa_rbkp-tcode <> 'MIR7'.
+*        wa_output-document_type = 'RS'.
+*      ELSE.
+*        wa_output-document_type = wa_rbkp-blart.
+*      ENDIF.
+      CASE wa_rbkp-blart.
+        WHEN 'KR'.
+          wa_output-document_type = 'FI INVOICE'.
+        WHEN 'RE'.
+          wa_output-document_type = 'MM INVOICE'.
+        WHEN OTHERS.
+          wa_output-document_type = wa_rbkp-blart.
+      ENDCASE.
+*****************************document_type_desc********************************************
+         IF wa_rbkp-blart = 'KG'.
+        wa_output-document_type_desc = 'DEBIT NOTE'.
+      ELSE.
+        wa_output-document_type_desc = wa_rbkp-blart.
+      ENDIF.
+************************************************************************************************
+*      wa_output-document_type_desc     = wa_rbkp-blart.
+      wa_output-lineno                 =  wa_rseg-buzei.
+      wa_output-fi_invoice_no          = wa_rbkp-belnr.
+**********************ODNNO****************************************************************
+      wa_output-ODNNO                  = wa_bkpf-XBLNR_ALT.
+***************************************************************************************
+      wa_output-reference_invoice      = wa_rbkp-xblnr.
+      wa_output-reference_invoice_date = wa_rbkp-bldat.
+      wa_output-order_no               = wa_rseg-ebeln.
+      wa_output-bill_no                = wa_rseg-ebeln. " Adjust as needed if data is from VBRK
+      wa_output-bill_date              = wa_rbkp-bldat.
+      wa_output-posting_date           = wa_rbkp-budat.
+      wa_output-vendor_code            = wa_rbkp-lifnr.
+      wa_output-vendor_name            = wa_lfa1-name1.
+      wa_output-vendor_gst_no          = wa_lfa1-stcd3.
+
+********************GST Vendor Type Logic*************************************************
+      IF wa_lfa1-stcd3 IS NOT INITIAL.
+        wa_output-gst_vendor_type = 'REGISTERED'.
+      ELSE.
+        wa_output-gst_vendor_type = 'UNREGISTERED'.
+      ENDIF.
+**************************************************************************************************
+      wa_output-vendor_state_code      = wa_lfa1-regio.
+      wa_output-vendor_state_name      = wa_t005s-herbl.
+
+********************************* Purchase Type Logic***********************
+      IF wa_rseg-ebeln IS NOT INITIAL.
+        wa_output-purchase_type = 'Standard Purchase Order'.
+      ELSE.
+        wa_output-purchase_type = 'Other'.
+      ENDIF.
+*****************************************************************************
+      "TYPE
+      "DEC.
+      "UOM
+****************************************************************************
+      wa_output-material               = wa_rseg-matnr.
+      wa_output-quantity               = wa_rseg-menge.
+      wa_output-unit                   = wa_rseg-meins.
+      wa_output-amount                 = wa_rseg-wrbtr.
+************************************************************
+      "CSGTGLACC
+      "SGSTGLACC
+      "IGSTGLACC
+      "UNPLANNEDDELCOSTS
+
+**************************GST Credit Logic*************************************
+      IF wa_bset-mwskz = 'B1' OR wa_bset-mwskz = 'B2'.
+        wa_output-gst_credit = 'YES'.
+      ELSE.
+        wa_output-gst_credit = 'NO'.
+      ENDIF.
+
+**************************GST Rates and Amounts**************************************
+      wa_output-cgst_rate  = wa_bset-kbetr / 100.
+      wa_output-cgst_amount = wa_rseg-wrbtr * ( wa_bset-kbetr / 100 ).
+     " wa_output-sgst_rate  = wa_bset-kbetr / 100.
+      wa_output-sgst_amount = wa_rseg-wrbtr * ( wa_bset-kbetr / 100 ).
+      "wa_output-igst_rate  = wa_bset-kbetr / 100.
+      wa_output-igst_amount = wa_rseg-wrbtr * ( wa_bset-kbetr / 100 ).
+*******************************************************************************************
+
+      " Append to Final Output Table
+      APPEND wa_output TO it_output.
+    ENDLOOP.
+  ENDLOOP.
+
+  PERFORM Zmm_FC.
+*&---------------------------------------------------------------------*
+*& Form Zmm_FC
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM Zmm_FC .
+
+  DATA: counter TYPE i.
+  DATA: gt_fieldcat            TYPE slis_t_fieldcat_alv.
+  DATA: gs_fieldcat            LIKE LINE OF gt_fieldcat.
+
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'company_code'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'COMPANY CODE'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'company_gst_no'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'COMPANY GSTR NO'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'business_place'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'BUSINESS PLACE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'plant'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'PLANT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '8'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'plant_name '.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'PLANT NAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'fiscal_year'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'YEAR'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '8'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'invoice_type'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'INVOICE TYPE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'invoice_no'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'INVOICE NUMBER'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'document_type'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'DOCUMENT TYPE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'document_type_desc'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'DOCUMENT TYPE DEC.'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'lineNO'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'LINE NO'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'fi_invoice_no'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l  = 'FI INVOICE NO'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'odnno '.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ODN NO'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'reference_invoice'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'REF. INVOICE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'reference_invoice_date'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'REF. INVOICE DATE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'order_no'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ORDER NUMBER'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'bill_no'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'BILL NUMBER'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'bill_date'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'BILL DATE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'posting_date'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'POSTING DATE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'vendor_code'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'VENDOR CODE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'vendor_name'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'VENDOR NAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'vendor_gst_no'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'VENDOR GST NUM.'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'gst_vendor_type'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'GST VENDOR TYPE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'vendor_state_code'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = ' VENDOR STATE CODE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'vendor_state_name '.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = ' VENDOR STATE NAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'purchase_type'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = ' PURCHASE TYPE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'type'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'TYPE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'description'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'DESCRIPTION'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'uom'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'UOM'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'quantity'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'QTY'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'unit_cost'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'UNIT COST'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'amount'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'AMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'CSGT GL ACC'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'SGST GL ACC'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'IGST GL ACC'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'UNPLANNIED COSTS'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'gst_credit'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'GST CREDIT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'gst_rate'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'GST RATE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'cgst_amount'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'CGST AMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'sgst_amount'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'SGST AMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'igst_amount'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'IGST AMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'RCMCGSTAMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'RCMSGSTAMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'RCMIGSTAMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'NDCGSTAMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'NDSGSTAMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'NDIGSTAMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'TOTALGST'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'TOTALAMOUNT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'TRANHSNCODE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'TRANHSNNAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'MASTHSNCODE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'TAXCODE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'TAXCODEDESC'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'NETWORK'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'NETWORKNAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ACTIVITY'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ACTIVITY NAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'WBS ELEMENT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'WBS ELEMENT NAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'POS ID'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'PRJFIXEDASSET'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'PRJFIXEDASSETNAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ACCOUNTGROUP'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ACCOUNTGROUPNAME'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ITC_TYPE'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ELIGIBILITY'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'DECISION'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'GSTR_3B_MONTH'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ITCSTATUS'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+    counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = '0'.
+  gs_fieldcat-tabname    = 'it_output'.
+  gs_fieldcat-seltext_l   = 'ATTACHMENT'.
+  gs_fieldcat-lowercase  = 'X'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+* Call ALV grid display
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      it_fieldcat   = gt_fieldcat"lt_fieldcat
+      i_save        = 'A'        " Optional, saves the ALV layout
+    TABLES
+      t_outtab      = it_output
+    EXCEPTIONS
+      program_error = 1
+      OTHERS        = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE 'Error in ALV display' TYPE 'E'.
+  ENDIF.
+ENDFORM.
