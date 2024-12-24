@@ -1,18 +1,20 @@
 *&---------------------------------------------------------------------*
-*& Report ZBANK_BCM
+*& Report ZBANK_1
 *&---------------------------------------------------------------------*
 *&
 *&---------------------------------------------------------------------*
-REPORT zbank_bcm.
+REPORT zbnk_bcm_aj.
+
 
 
 TABLES :bnk_batch_item,bnk_batch_header.
+
+INCLUDE ZBCM_TOP_CP.
 **************** INPUT SCREEN ******************************************
 SELECT-OPTIONS : s_ZBUKR FOR bnk_batch_header-zbukr,
                  s_LAUO FOR bnk_batch_item-laufi_o,
                  s_batch  FOR bnk_batch_header-Batch_no ,
                  s_LAUF FOR bnk_batch_header-laufd.
-                 "jdbvhd
 
 TYPES :BEGIN OF bnk_batch_header,
          guid      TYPE bnk_com_btch_guid,
@@ -61,21 +63,23 @@ TYPES : BEGIN OF bnka,
           bnklz TYPE bankl,
           swift TYPE swift,
         END OF bnka.
-TYPES : BEGIN OF reguh,   "laufd laufi hbkid zbukr ubnky ubknt  vblnr lifnr kunnr xvorl zswif zbnkn BKREF
-          laufd TYPE laufd,
-          laufi TYPE laufi,
-          hbkid TYPE hbkid,
-          zbukr TYPE dzbukr,
-          ubnky TYPE ubnky,
-          ubknt TYPE ubknt,
-          vblnr TYPE vblnr,
-          lifnr TYPE lifnr,
-          name1 TYPE name1_gp,
-          kunnr TYPE kunnr,
-          xvorl TYPE xvorl,
-          zswif TYPE swift,
-          zbnkn TYPE dzbnkn,
-          bkref TYPE bkref,
+TYPES : BEGIN OF reguh, " laufd laufi hbkid zbukr ubnky ubknt  vblnr lifnr kunnr xvorl zswif zbnkn zbnkn_long  bkref
+          laufd      TYPE laufd,
+          laufi      TYPE laufi,
+          hbkid      TYPE hbkid,
+          zbukr      TYPE dzbukr,
+          ubnky      TYPE ubnky,
+          ubknt      TYPE ubknt,
+          vblnr      TYPE vblnr,
+          lifnr      TYPE lifnr,
+          name1      TYPE name1_gp,
+          kunnr      TYPE kunnr,
+          xvorl      TYPE xvorl,
+          zswif      TYPE swift,
+          zbnkn      TYPE dzbnkn,
+          zbnkn_long TYPE dzbnkn35,
+          bkref      TYPE bkref,
+
         END OF reguh.
 
 TYPES : BEGIN OF acdoca,
@@ -91,43 +95,8 @@ TYPES : BEGIN OF acdoca,
           gjahr  TYPE gjahr,
           augdt  TYPE augdt,
           augbl  TYPE augbl,
+          bldat  TYPE bldat,
         END OF acdoca.
-
-TYPES: BEGIN OF header_data,
-         name1     TYPE ad_name1,
-         name2     TYPE ad_name2,
-         zbukr     TYPE dzbukr,
-         hbkid     TYPE hbkid,
-         ubnky     TYPE ubnky,
-         ubknt     TYPE ubknt,
-         banka     TYPE banka,
-         batch_no  TYPE bnk_com_btch_no,
-         batch_sum TYPE bnk_com_btch_amount,
-         item_cnt  TYPE bnk_com_btch_ctr,
-         rule_id   TYPE bnk_com_btch_rule_id,
-         text      TYPE bnk_com_rule_id_desc,
-         laufi     TYPE laufi,
-       END OF header_data.
-
-TYPES: BEGIN OF item_data,
-         lifnr      TYPE lifnr,         " Party name
-         vblnr      TYPE vblnr,        " Payment number
-         amt_rulecu TYPE bnk_com_pymntamt_in_rulcu, " Amount
-         laufd      TYPE bnk_com_btch_mrge_dat,     " Merge date
-         belnr      TYPE belnr_d,
-         prctr      TYPE prctr,
-         blart      TYPE blart,
-         werks      TYPE werks_d,
-         name1      TYPE string,
-         lif_name1  TYPE name1_gp,
-         zswif      TYPE swift,
-         zbnkn      TYPE dzbnkn,
-         bkref      TYPE bkref,
-         banka      TYPE banka,
-         konzs      TYPE konzs,
-         xblnr      TYPE xblnr1,
-       END OF item_data.
-
 
 DATA :it_bnkH   TYPE TABLE OF bnk_batch_header,
       wa_bnkH   TYPE bnk_batch_header,
@@ -144,13 +113,71 @@ DATA :it_bnkH   TYPE TABLE OF bnk_batch_header,
       it_reguh  TYPE TABLE OF reguh,
       wa_reguh  TYPE reguh,
       it_acdoca TYPE TABLE  OF acdoca,
-      wa_acdoca TYPE acdoca,
-      it_header TYPE TABLE  OF header_data,
-      wa_header TYPE header_data,
+      wa_acdoca TYPE acdoca.
 
-      it_item   TYPE TABLE OF item_data,
-      wa_item   TYPE item_data.
-.
+TYPES: BEGIN OF ty_header_data,
+         name1     TYPE ad_name1,
+         name2     TYPE ad_name2,
+         full_name TYPE char100,
+         zbukr     TYPE dzbukr,
+         hbkid     TYPE hbkid,
+         ubnky     TYPE ubnky,
+         ubknt     TYPE ubknt,
+         banka     TYPE banka,
+         batch_no  TYPE bnk_com_btch_no,
+         batch_sum TYPE bnk_com_btch_amount,
+         item_cnt  TYPE bnk_com_btch_ctr,
+         rule_id   TYPE bnk_com_btch_rule_id,
+         text      TYPE bnk_com_rule_id_desc,
+         laufi     TYPE laufi,
+       END OF ty_header_data.
+
+TYPES: BEGIN OF ty_item_data,
+         lifnr      TYPE lifnr,         " Party name
+         vblnr      TYPE vblnr,        " Payment number
+         amt_rulecu TYPE bnk_com_pymntamt_in_rulcu, " Amount
+         laufd      TYPE bnk_com_btch_mrge_dat,     " Merge date
+        KEY_ID     TYPE CHAR20,       "Rs:add.
+         belnr      TYPE belnr_d,
+         prctr      TYPE prctr,
+         blart      TYPE blart,
+         werks      TYPE werks_d,
+         name1      TYPE string,
+         lif_name1  TYPE name1_gp,
+         zswif      TYPE swift,
+         zbnkn      TYPE dzbnkn,
+         bkref      TYPE bkref,
+         banka      TYPE banka,
+         konzs      TYPE konzs,
+*         bldat      TYPE bldat,
+         xblnr      TYPE xblnr1,
+       END OF ty_item_data.
+
+TYPES: BEGIN OF ty_bill_dt,
+         belnr TYPE belnr_d,
+         blart TYPE blart,
+         bldat TYPE bldat,
+         awref TYPE awref,
+         netdt TYPE netdt,
+         xblnr TYPE xblnr1,
+         ppnam TYPE char12, " Adjust size based on expected length
+         wrbtr TYPE wrbtr,
+         skfbt TYPE skfbt,
+         augbl TYPE belnr_d,
+         amt_pay TYPE wrbtr,
+        KEY_ID     TYPE CHAR20,  "RS:added.
+       END OF ty_bill_dt.
+
+
+DATA: it_item TYPE TABLE OF ty_item_data,
+      wa_item TYPE ty_item_data.
+
+
+DATA: it_header TYPE TABLE OF ty_header_data,
+      wa_header TYPE ty_header_data.
+
+DATA: it_bill TYPE TABLE OF ty_bill_dt,
+      wa_bill TYPE ty_bill_dt.
 
 START-OF-SELECTION.
 
@@ -161,12 +188,16 @@ START-OF-SELECTION.
     AND batch_no IN s_batch
     AND laufd IN s_LAUF.
 
-  SELECT zbukr batch_no laufd laufi_o item_no lifnr vblnr amt_rulecu
+  IF it_bnkh IS NOT INITIAL.
+    SELECT zbukr batch_no laufd laufi_o item_no lifnr vblnr amt_rulecu item_no
     INTO TABLE it_bnkI
     FROM bnk_batch_item
     FOR ALL ENTRIES IN it_bnkh
-    WHERE batch_no = it_bnkh-batch_no AND zbukr = it_bnkh-zbukr AND laufd = it_bnkh-laufd AND laufi_o IN s_LAUO.
+    WHERE batch_no = it_bnkh-batch_no
+ AND laufd = it_bnkh-laufd
+     AND laufi_o IN s_LAUO.
 
+  ENDIF.
   SELECT bukrs butxt  adrnr
     INTO TABLE it_t001
     FROM t001
@@ -190,7 +221,7 @@ START-OF-SELECTION.
   ENDIF.
 
   IF it_bnki IS NOT INITIAL.
-    SELECT laufd laufi hbkid zbukr ubnky ubknt  vblnr lifnr kunnr xvorl zswif zbnkn bkref
+    SELECT laufd laufi hbkid zbukr ubnky ubknt  vblnr lifnr name1 kunnr xvorl zswif zbnkn zbnkn_long  bkref
       INTO TABLE it_reguh
       FROM reguh
       FOR ALL ENTRIES IN it_bnki
@@ -198,30 +229,30 @@ START-OF-SELECTION.
       AND laufi = it_bnki-laufi_o  "or laufi in s_LAUO
       AND zbukr = it_bnki-zbukr
       AND lifnr = it_bnki-lifnr
-      AND xvorl <> 'X'.
+      AND xvorl <> 'X' . " or xvorl = 'X'.
   ENDIF.
-
-
-
   IF  it_reguh IS NOT INITIAL.
-    SELECT  rbukrs belnr prctr blart netdt awref hsl lifnr kunnr gjahr augdt augbl
+    SELECT  rbukrs belnr prctr blart netdt awref hsl lifnr kunnr gjahr augdt augbl bldat
       FROM Acdoca
       INTO TABLE it_ACDOCA
       FOR ALL ENTRIES IN it_reguh
       WHERE rbukrs = it_reguh-zbukr
        AND lifnr = it_reguh-lifnr
-      AND augdt = it_reguh-laufd
-      AND blart IN ('RE' , 'AB').
+      AND augdt = it_reguh-laufd .
+    "  AND blart IN ('RE' , 'AB' , 'zp', 'kz' , 'KB' , 'SA' ,  'KO' , 'AB' ).
   ENDIF.
 
-  IF it_reguh IS NOT INITIAL.
-    SELECT  banka bankl bnklz
+  IF it_reguh IS NOT INITIAL .
+    SELECT  banka bankl bnklz swift
         INTO TABLE it_bnka
         FROM bnka
         FOR ALL ENTRIES IN it_reguh
-        WHERE bankl = it_reguh-ubnky.
+        WHERE swift = it_reguh-zswif . " and bankl = it_reguh-ubnky. "and BANKS = 'IN'.
   ENDIF.
 
+
+
+*header internal table
   LOOP AT it_bnkh INTO wa_bnkH.
     CLEAR wa_header.
     wa_header-zbukr = wa_bnkH-zbukr.
@@ -230,6 +261,13 @@ START-OF-SELECTION.
     wa_header-item_cnt = wa_bnkH-item_cnt.
     wa_header-rule_id = wa_bnkH-rule_id.
 
+    READ TABLE it_bnkI INTO wa_bnki WITH KEY batch_no = wa_bnkH-batch_no.   "it_bnkI INTO wa_bnki.
+     IF sy-subrc = 0 AND wa_bnki-laufi_o IS NOT INITIAL.
+      wa_header-laufi = wa_bnki-laufi_o.
+    ELSE.
+      CONTINUE. " Skip appending this header if laufi_o is empty
+    ENDIF.
+
     READ TABLE it_t001 INTO wa_t001 WITH KEY bukrs = wa_bnkH-zbukr.
     IF sy-subrc = 0.
       " Get name1 and name2 from it_adrc based on adrnr
@@ -237,6 +275,7 @@ START-OF-SELECTION.
       IF sy-subrc = 0.
         wa_header-name1 = wa_adrc-name1.
         wa_header-name2 = wa_adrc-name2.
+        CONCATENATE wa_adrc-name1 wa_adrc-name2 INTO wa_header-full_name SEPARATED BY space.
       ELSE.
         WRITE: / 'No matching ADRC record for ADRNR:', wa_t001-adrnr.
       ENDIF.
@@ -250,23 +289,29 @@ START-OF-SELECTION.
       wa_header-hbkid = wa_reguh-hbkid.
       wa_header-ubnky = wa_reguh-ubnky.
       wa_header-ubknt = wa_reguh-ubknt.
-      wa_header-laufi = wa_reguh-laufi.
+      "wa_header-laufi = wa_reguh-laufi.
     ENDIF.
 
     " Get data from it_bnka
     READ TABLE it_bnka INTO wa_bnka WITH KEY bankl = wa_reguh-ubnky.
     IF sy-subrc = 0.
       wa_header-banka = wa_bnka-banka.
+    ELSE.
+      SELECT SINGLE banka INTO (wa_header-banka) FROM bnka WHERE bankl = wa_reguh-ubnky.
     ENDIF.
 
     READ TABLE it_tt INTO wa_tt WITH KEY rule_id =  wa_bnkh-rule_id.
     IF sy-subrc = 0.
       wa_header-text = wa_tt-text.
+
     ENDIF.
 
     " Append the combined data to the header table
     APPEND wa_header TO it_header.
   ENDLOOP.
+
+  DATA: lt_t001w TYPE TABLE OF t001w,
+        wa_t001w TYPE t001w.
 
 *item_internal table
   LOOP AT it_bnkI INTO wa_bnki.
@@ -275,6 +320,7 @@ START-OF-SELECTION.
     wa_item-vblnr = wa_bnki-vblnr.
     wa_item-amt_rulecu = wa_bnki-amt_rulecu.
     wa_item-laufd = wa_bnki-laufd.
+    wa_item-key_id = |{ wa_bnki-lifnr }_{ wa_bnki-vblnr }|.  "RS:added
 
     READ TABLE it_acdoca INTO wa_acdoca WITH KEY awref = wa_item-vblnr.
     IF sy-subrc = 0.
@@ -323,13 +369,200 @@ START-OF-SELECTION.
   ENDLOOP.
 
 
-  cl_demo_output=>display( it_header ).
-  cl_demo_output=>display( it_item ).
-*  cl_demo_output=>display( it_bnkh ).
-*  cl_demo_output=>display( it_bnkI ).
-*  cl_demo_output=>display( it_t001 ).
-*  cl_demo_output=>display( it_adrc ).
-*  cl_demo_output=>display( it_tt ).
-*  cl_demo_output=>display( it_reguh ).
-*  cl_demo_output=>display( it_bnka ).
-*  cl_demo_output=>display( it_acdoca ).
+
+
+  DATA: lt_processed TYPE TABLE OF zbill_dt, " Table to track processed entries
+        ls_processed TYPE zbill_dt.
+
+*for transactions / bill
+
+  LOOP AT it_item INTO wa_item .
+    LOOP AT it_acdoca INTO wa_acdoca WHERE augbl = wa_item-vblnr.
+      IF wa_acdoca-blart = 'AB' OR wa_acdoca-blart = 'RE' OR wa_acdoca-blart = 'KZ' OR wa_acdoca-blart = 'ZE' OR wa_acdoca-blart = 'KR'
+        or wa_acdoca-blart = 'KA' OR wa_acdoca-blart = 'SA'.
+        CLEAR: wa_bill.
+        " Populate fields for the transaction
+        wa_bill-belnr = wa_acdoca-belnr.
+        wa_bill-blart = wa_acdoca-blart.
+        wa_bill-bldat = wa_acdoca-bldat.
+        wa_bill-awref = wa_acdoca-awref.
+        wa_bill-netdt = wa_acdoca-netdt.
+        wa_bill-augbl = wa_acdoca-augbl.
+        wa_bill-key_id = |{ wa_item-lifnr }_{ wa_item-vblnr }|.  "RS:Added.
+
+        " Fetch invoice and payment amounts from BSEG
+        SELECT SINGLE wrbtr skfbt
+          INTO (wa_bill-wrbtr, wa_bill-skfbt)
+          FROM bseg
+          WHERE lifnr = wa_item-lifnr
+            AND belnr = wa_bill-belnr
+            AND gjahr = wa_acdoca-gjahr.
+
+        " Fetch additional details from BKPF
+        SELECT SINGLE xblnr ppnam
+          INTO (wa_bill-xblnr, wa_bill-ppnam)
+          FROM bkpf
+          WHERE belnr = wa_bill-belnr
+            AND gjahr = wa_acdoca-gjahr
+            AND bukrs IN s_zbukr.
+
+        " Fetch user name from user_addr
+        SELECT SINGLE name_textc
+          INTO wa_bill-ppnam
+          FROM user_addr
+          WHERE bname = wa_bill-ppnam.
+
+        " Check if the BELNR is already processed
+        READ TABLE lt_processed WITH KEY belnr = wa_bill-belnr TRANSPORTING NO FIELDS.
+        IF sy-subrc NE 0.
+          " Append to the processed table and the it_bill table
+          APPEND wa_bill TO lt_processed.
+          APPEND wa_bill TO it_bill.
+        ENDIF.
+
+      ENDIF.
+    ENDLOOP.
+  ENDLOOP.
+
+   cl_demo_output=>display( it_header ).
+   cl_demo_output=>display( it_item ).
+   cl_demo_output=>display( it_bill ).
+
+INCLUDE ZMERGED_DATA_CP.
+  PERFORM call_smartform.
+*&---------------------------------------------------------------------*
+*& Form call_smartform
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM call_smartform .
+
+ DATA: l_hd TYPE STANDARD TABLE OF zheader_data,
+       s_hd TYPE zheader_data,
+       l_it TYPE STANDARD TABLE OF zitem_data,
+       s_it TYPE zitem_data,
+       l_bl TYPE STANDARD TABLE OF zbill_dt,
+       s_bl TYPE zbill_dt.
+
+ DATA: F_NAME TYPE RS38L_FNAM.
+ DATA: l_sum TYPE wrbtr.
+
+
+
+
+  IF  it_header IS NOT INITIAL.
+
+   LOOP AT it_header INTO wa_header.
+     s_hd-zbukr = wa_header-zbukr.
+     s_hd-full_name = wa_header-full_name.
+     s_hd-HBKID = wa_header-HBKID.
+     s_hd-UBNKY = wa_header-UBNKY.
+     s_hd-UBKNT = wa_header-UBKNT.
+     s_hd-BANKA = wa_header-BANKA.
+     s_hd-BATCH_NO = wa_header-BATCH_NO.
+     s_hd-BATCH_SUM = wa_header-BATCH_SUM.
+     s_hd-ITEM_CNT = wa_header-ITEM_CNT.
+     s_hd-RULE_ID = wa_header-RULE_ID.
+     s_hd-TEXT = wa_header-TEXT.
+     s_hd-LAUFI = wa_header-LAUFI.
+
+     APPEND s_hd to l_hd.
+     CLEAR s_hd.
+
+     LOOP AT it_item INTO wa_item  .
+
+       s_it-WERKS = wa_item-WERKS.
+       s_it-NAME1 = wa_item-NAME1.
+       s_it-LIF_NAME1 = wa_item-LIF_NAME1.
+       s_it-LIFNR = wa_item-LIFNR.
+       s_it-LAUFD = wa_item-LAUFD.
+       s_it-BELNR = wa_item-BELNR.
+       s_it-BANKA = wa_item-BANKA.
+       s_it-ZSWIF = wa_item-ZSWIF.
+       s_it-ZBNKN = wa_item-ZBNKN.
+       s_it-KONZS = wa_item-KONZS.
+       s_it-XBLNR = wa_item-XBLNR.
+       s_it-AMT_RULECU = wa_item-AMT_RULECU.
+       s_it-key_id     = wa_item-key_id.
+       APPEND s_it to l_it.
+       CLEAR s_it.
+
+       LOOP AT it_bill INTO wa_bill WHERE key_id = wa_item-key_id.
+         "AND augbl = wa_item-lifnr.
+         s_bl-BELNR = wa_bill-BELNR.
+         s_bl-BLART = wa_bill-BLART.
+         s_bl-BLDAT = wa_bill-BLDAT.
+         s_bl-AWREF = wa_bill-AWREF.
+         s_bl-NETDT = wa_bill-NETDT.
+         s_bl-XBLNR = wa_bill-XBLNR.
+         s_bl-PPNAM = wa_bill-PPNAM.
+         s_bl-SKFBT = wa_bill-SKFBT.
+         s_bl-WRBTR = wa_bill-WRBTR.
+         IF s_bl-wrbtr is NOT INITIAL.
+           l_sum = s_bl-wrbtr.
+         ENDIF.
+         s_bl-AUGBL = wa_bill-AUGBL.
+         s_bl-amt_pay = l_sum.
+         s_bl-key_id = wa_bill-key_id.
+
+         APPEND s_bl to l_bl.
+         CLEAR s_bl.
+
+       CLEAR wa_bill.
+       ENDLOOP.
+       CLEAR wa_item.
+     ENDLOOP.
+      CLEAR wa_header.
+     ENDLOOP.
+
+CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+  EXPORTING
+    formname                 = 'ZTEST_BCM_1_CP'
+*   VARIANT                  = ' '
+*   DIRECT_CALL              = ' '
+ IMPORTING
+   FM_NAME                  = F_NAME
+ EXCEPTIONS
+   NO_FORM                  = 1
+   NO_FUNCTION_MODULE       = 2
+   OTHERS                   = 3
+          .
+
+CALL FUNCTION F_NAME
+* EXPORTING
+*   ARCHIVE_INDEX              =
+*   ARCHIVE_INDEX_TAB          =
+*   ARCHIVE_PARAMETERS         =
+*   CONTROL_PARAMETERS         =
+*   MAIL_APPL_OBJ              =
+*   MAIL_RECIPIENT             =
+*   MAIL_SENDER                =
+*   OUTPUT_OPTIONS             =
+*   USER_SETTINGS              = 'X'
+* IMPORTING
+*   DOCUMENT_OUTPUT_INFO       =
+*   JOB_OUTPUT_INFO            =
+*   JOB_OUTPUT_OPTIONS         =
+  TABLES
+    l_hd                       = L_HD
+    l_it                       = L_IT
+    l_bl                       = L_BL
+ EXCEPTIONS
+   FORMATTING_ERROR           = 1
+   INTERNAL_ERROR             = 2
+   SEND_ERROR                 = 3
+   USER_CANCELED              = 4
+   OTHERS                     = 5
+          .
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
+
+
+
+  ENDIF.
+
+ENDFORM.
