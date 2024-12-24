@@ -1,0 +1,230 @@
+REPORT zfi_sales_gstr1.
+
+TABLES: bsid,j_1bbranch , bseg, bset.
+
+" Selection Screen
+SELECT-OPTIONS: s_bukrs FOR bsid-bukrs,
+                s_bldat FOR bsid-bldat.
+
+TYPES: BEGIN OF ty_final,
+         companycode          TYPE bsid-bukrs,
+         companygstno         TYPE j_1bbranch-kr_indtype,
+         plant                TYPE bseg-werks,
+         plantname            TYPE t001w-name1,
+         fiscalyear           TYPE bsid-gjahr,
+         documenttype         TYPE bsid-blart,
+         documenttypedesc     TYPE t003t-ltext,
+         documentno           TYPE bsid-belnr,
+         referenceinvoicedate TYPE sy-datum, " No direct field available; define as date
+         referenceinvoiceno   TYPE bsid-xblnr,
+         billno               TYPE bsid-xblnr,
+         billdate             TYPE bsid-bldat,
+         postingdate          TYPE bsid-budat,
+         customercode         TYPE bsid-kunnr,
+         customername         TYPE kna1-name1,
+         customergstnumber    TYPE kna1-stcd3,
+         customerstatecode    TYPE kna1-regio,
+         customerstate_name   TYPE t005u-bezei,
+*         glaccno              TYPE skat-hkont,
+         glname               TYPE skat-txt50,
+         uom                  TYPE char10, " UOM not defined, so using CHAR type
+         quantity             TYPE p DECIMALS 2, " Define as packed number
+*         unitcost             TYPE bset-dmbtr, " Assumed type
+*         amount               TYPE bset-dmbtr,
+         gstrate              TYPE p DECIMALS 2, " Define as percentage
+*         cgstamount           TYPE bset-dmbtr,
+*         sgstamount           TYPE bset-dmbtr,
+*         igstamount           TYPE bset-dmbtr,
+*         totalgst             TYPE bset-dmbtr,
+*         totalamount          TYPE bset-dmbtr,
+*         tranhsncode          TYPE t604n-hsn_sac,
+         tranhsnname          TYPE t604n-text1,
+         masthsncode          TYPE char10, " MASTHSNCODE not defined; using CHAR type
+         taxcode              TYPE bset-mwskz,
+*         taxcodedesc          TYPE t007a-text1,
+       END OF ty_final.
+
+
+" Type Definitions
+TYPES: BEGIN OF ty_bsid,
+         bukrs TYPE bukrs,
+         kunnr TYPE kunnr,
+         belnr TYPE belnr_d,
+         gjahr TYPE gjahr,
+         budat TYPE budat,
+         blart TYPE blart,
+         bldat TYPE bldat,
+         xblnr TYPE xblnr1,
+         augbl TYPE augbl,
+         buzei TYPE buzei,
+         BUPLA TYPE BUPLA,
+       END OF ty_bsid.
+
+TYPES : BEGIN OF j_1bbranch, " bukrs branch name gstin
+          bukrs  TYPE bukrs,
+          branch TYPE j_1bbranc_,
+          name   TYPE name1,
+          gstin  TYPE j_1igstcd3,
+        END OF j_1bbranch.
+
+TYPES : BEGIN OF t001w, "werks name1
+  WERKS TYPE WERKS_D,
+  NAME1 TYPE NAME1,
+  END OF t001w.
+
+  TYPES : BEGIN OF t003t, " blart ltext
+    BLART TYPE BLART,
+    LTEXT TYPE LTEXT_003T,
+    END OF t003t.
+
+TYPES: BEGIN OF ty_bseg,
+         bukrs TYPE bukrs,
+         gjahr TYPE gjahr,
+         belnr TYPE belnr_d,
+         hkont TYPE hkont,
+         prctr TYPE prctr,
+         werks TYPE werks,
+         wrbtr TYPE wrbtr,
+         augbl TYPE augbl,
+         buzei TYPE buzei,
+       END OF ty_bseg.
+
+TYPES: BEGIN OF ty_bset,
+         bukrs TYPE bukrs,
+         gjahr TYPE gjahr,
+         belnr TYPE belnr_d,
+         mwskz TYPE mwskz,
+         fwste TYPE fwste,
+         kschl TYPE kschl,
+       END OF ty_bset.
+
+
+
+" Data Declarations
+DATA: it_bsid  TYPE TABLE OF ty_bsid,
+      wa_bsid  TYPE ty_bsid,
+      it_bseg  TYPE TABLE OF ty_bseg,
+      wa_bseg  TYPE ty_bseg,
+      it_bset  TYPE TABLE OF ty_bset,
+      wa_bset  TYPE ty_bset,
+      it_CG    TYPE TABLE OF j_1bbranch,
+      wa_cg    TYPE j_1bbranch,
+      it_t001w TYPE TABLE of t001w,
+      wa_t001w TYPE t001w,
+      it_t003t TYPE TABLE of t003t,
+      wa_t003t TYPE t003t,
+      it_final TYPE TABLE OF ty_final,
+      wa_final TYPE ty_final.
+
+START-OF-SELECTION.
+  SELECT bukrs, kunnr, belnr, gjahr, budat, blart, bldat, xblnr , augbl ,buzei,BUPLA
+    INTO TABLE @it_bsid
+    FROM bsid
+    WHERE bukrs IN @s_bukrs
+      AND bldat IN @s_bldat
+      AND blart IN ('DR', 'DG', 'DA', 'AA', 'PS').
+
+SELECT bukrs branch name gstin
+  INTO TABLE it_cg
+  FROM J_1BBRANCH
+  FOR ALL ENTRIES IN it_bsid
+  where bukrs = it_bsid-bukrs
+  and branch = it_bsid-BUPLA.
+
+  " Step 2: Fetch BSEG Data (Line Items)
+  SELECT bukrs, gjahr, belnr, hkont, prctr, werks, wrbtr,augbl, buzei
+  INTO TABLE @it_bseg
+  FROM bseg
+  FOR ALL ENTRIES IN @it_bsid
+  WHERE bukrs = @it_bsid-bukrs
+    AND gjahr = @it_bsid-gjahr
+    AND belnr = @it_bsid-belnr
+    AND augbl <> ''.
+
+IF it_bseg is NOT INITIAL.
+SELECT werks, name1
+      INTO TABLE @it_t001w
+      FROM t001w
+      FOR ALL ENTRIES IN @it_bseg
+      where werks = @it_bseg-prctr+0(4).
+ENDIF.
+IF it_bsid is NOT INITIAL.
+
+SELECT blart, ltext
+  INTO TABLE @it_t003t
+  FROM t003t
+  FOR ALL ENTRIES IN @it_bsid
+  where blart = @it_bsid-blart.
+
+ENDIF.
+
+  " Step 3: Fetch BSET Data (Tax Details)
+  SELECT bukrs, gjahr, belnr, mwskz, fwste, kschl
+  INTO TABLE @it_bset
+  FROM bset
+  FOR ALL ENTRIES IN @it_bsid
+  WHERE bukrs = @it_bsid-bukrs
+    AND gjahr = @it_bsid-gjahr
+    AND belnr = @it_bsid-belnr.
+
+*  " Step 3: Fetch BSET Data (Tax Details)
+*  SELECT bukrs, gjahr, belnr, mwskz, fwste, kschl
+*  INTO TABLE @it_bset
+*  FROM bset
+*  FOR ALL ENTRIES IN @it_bseg
+*  WHERE bukrs = @it_bseg-bukrs
+*    AND gjahr = @it_bseg-gjahr
+*    AND belnr = @it_bseg-belnr.
+
+  LOOP AT it_bsid INTO wa_bsid.
+     MOVE-CORRESPONDING wa_bsid TO wa_final.
+    wa_final-companycode  = wa_bsid-bukrs.
+    READ TABLE it_cg INTO wa_cg WITH  KEY  branch = wa_bsid-BUPLA.
+    wa_final-COMPANYGSTNO = wa_cg-GSTIN.
+    READ TABLE it_bseg INTO wa_bseg WITH KEY belnr = wa_bsid-belnr.
+    wa_final-plant = wa_bseg-prctr+0(4).
+   READ TABLE it_t001w INTO wa_t001w WITH  KEY werks = wa_bseg-prctr+0(4).
+   wa_final-plantname = wa_t001w-name1.
+    wa_final-FISCALYEAR = wa_bsid-gjahr. " year
+    wa_final-documenttype = wa_bsid-blart. " doc. type
+    READ TABLE it_t003t INTO wa_t003t WITH KEY  blart = wa_bsid-blart.
+    wa_final-documenttypedesc = wa_t003t-LTEXT.
+
+
+
+  endloop.
+
+*  " Step 4: Process Tax Details and Build Final Result
+*  LOOP AT it_bset INTO wa_bset.
+*    CLEAR wa_final.
+*
+*    wa_final-bukrs = wa_bset-bukrs. " company
+*    wa_final-gjahr = wa_bset-gjahr. " fiscal year
+*    wa_final-belnr = wa_bset-belnr. "
+*
+*    " Classify and summarize tax amounts
+*    CASE wa_bset-kschl.
+*      WHEN 'JOCG' OR 'JICG'. " CGST
+*        wa_final-cgst_amt = wa_final-cgst_amt + wa_bset-fwste.
+*      WHEN 'JOSG' OR 'JISG'. " SGST
+*        wa_final-sgst_amt = wa_final-sgst_amt + wa_bset-fwste.
+*      WHEN 'JOIG' OR 'JIIG'. " IGST
+*        wa_final-igst_amt = wa_final-igst_amt + wa_bset-fwste.
+*      WHEN OTHERS.
+*        " Do nothing for non-GST entries
+*    ENDCASE.
+*
+*    " Append only if tax details are populated
+*    IF wa_final-cgst_amt > 0 OR wa_final-sgst_amt > 0 OR wa_final-igst_amt > 0.
+*      APPEND wa_final TO it_final.
+*    ENDIF.
+*  ENDLOOP.
+
+    " Step 5: Display Final Output
+    IF it_final IS NOT INITIAL.
+      cl_demo_output=>display( it_final ).
+    ELSE.
+      MESSAGE 'No tax details to display.' TYPE 'I'.
+    ENDIF.
+
+********************************************************************************
