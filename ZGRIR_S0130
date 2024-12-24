@@ -7,6 +7,233 @@ REPORT zgrir_s0130.
 TABLES: acdoca, zcds_grir_doc.
 *************************************************************************
 INCLUDE Ztable_structure_top.
+*&---------------------------------------------------------------------*
+*& Include          ZTABLE_STRUCTURE_TOP
+*&---------------------------------------------------------------------*
+TYPES: BEGIN OF final,
+         companycode        TYPE acdoca-rbukrs,
+         fiscalyear         TYPE acdoca-gjahr,
+         plant              TYPE acdoca-prctr,
+         plantname          TYPE char50,
+         profitcenter       TYPE acdoca-prctr,
+         PFcentername       TYPE cepct-ltext,
+         costcenter         TYPE acdoca-rcntr,
+         costcentername     TYPE cskt-ltext,
+         grir_glaccount     TYPE acdoca-racct,
+         grir_glaccountname TYPE skat-txt50,
+         postingdate        TYPE acdoca-budat,
+         documentdate       TYPE acdoca-bldat,
+         vendorno           TYPE lifnr,
+         vendorname         TYPE c LENGTH 80,
+         orderno            TYPE ebeln,
+         documenttype       TYPE blart,
+         manifestno         TYPE xblnr,
+         materialdocno      TYPE acdoca-awref,
+         documentno         TYPE acdoca-belnr,
+         type               TYPE c LENGTH 10,
+         code               TYPE c LENGTH 20,
+         description        TYPE c LENGTH 100,
+         uom                TYPE meins,
+         quantity           TYPE acdoca-msl,
+         amount             TYPE acdoca-hsl,
+         mm_inv_no          TYPE ekbe-belnr,
+         fi_inv_no          TYPE belnr_d,
+         inv_postingdate    TYPE ekbe-budat,
+         billdate           TYPE ekbe-bldat,
+         billno             TYPE bkpf-xblnr,
+         quantity1          TYPE ekbe-menge,
+         amount1            TYPE acdoca-hsl,
+         inv_glaccountno    TYPE saknr,
+         inv_glaccountname  TYPE c LENGTH 50,
+       END OF final.
+
+"TABLE ACDOCA
+TYPES : BEGIN OF acdoca, "RBUKRS GJAHR PRCTR RACCT BUDAT BLDAT LIFNR GKONT EBELN BLART AWREF BELNR MATNR RUNIT MSL HSL ebelp aworg RCNTR vrgng AWITGRP ktosl AWITEM
+          rbukrs  TYPE bukrs,
+          gjahr   TYPE gjahr,
+          prctr   TYPE prctr,
+          racct   TYPE racct,
+          budat   TYPE budat,
+          bldat   TYPE bldat,
+          lifnr   TYPE lifnr,
+          gkont   TYPE gkont,
+          ebeln   TYPE ebeln,
+          blart   TYPE blart,
+          awref   TYPE awref,
+          belnr   TYPE belnr_d,
+          matnr   TYPE matnr,
+          runit   TYPE meins,
+          msl     TYPE quan1_12,
+          hsl     TYPE fins_vhcur12,
+          ebelp   TYPE ebelp,
+          aworg   TYPE aworg,
+          rcntr   TYPE kostl,
+          vrgng   TYPE co_vorgang,
+          awitgrp TYPE fins_awitgrp,
+          ktosl   TYPE ktosl,
+          awitem  TYPE fins_awitem,
+        END OF acdoca,
+
+        " SKAT
+        BEGIN OF skat,  "KTOPL SAKNR TXT50
+          ktopl TYPE ktopl,
+          saknr TYPE saknr,
+          txt50 TYPE txt50_skat,
+        END OF skat,
+
+        BEGIN OF t001w, " WERKS NAME1 KUNNR LIFNR
+          werks TYPE werks_d,
+          name1 TYPE name1,
+          kunnr TYPE kunnr_wk,
+          lifnr TYPE lifnr_wk,
+        END OF t001w,
+
+        BEGIN OF but000, " PARTNER NAME_ORG1 NAME_ORG2
+          partner   TYPE bu_partner,
+          name_org1 TYPE bu_nameor1,
+          name_org2 TYPE bu_nameor2,
+        END OF but000,
+
+        BEGIN OF makt,  " matnr maktx
+          matnr TYPE matnr,
+          maktx TYPE maktx,
+        END OF makt,
+
+        BEGIN OF cepct,  " prctr datbi kokrs LTEXT
+          prctr TYPE prctr,
+          datbi TYPE datbi,
+          kokrs TYPE kokrs,
+          ltext TYPE ltext,
+        END OF cepct,
+
+        BEGIN OF nsdm_v_mseg, "mblnr mjahr zeile ebeln ebelp line_id LFBJA lfbnr lfpos XBLNR_MKPF
+          mblnr      TYPE mblnr,
+          mjahr      TYPE mjahr,
+          zeile      TYPE mblpo,
+          ebeln      TYPE ebeln,
+          ebelp      TYPE ebelp,
+          line_id    TYPE mb_line_id,
+          lfbja      TYPE lfbja,
+          lfbnr      TYPE lfbnr,
+          lfpos      TYPE lfpos,
+          xblnr_mkpf TYPE xblnr1,
+        END OF nsdm_v_mseg,
+
+        BEGIN OF ekbe, " ebeln ebelp lfgja lfbnr lfpos belnr gjahr BUZEI budat bldat menge
+          ebeln TYPE ebeln,
+          ebelp TYPE ebelp,
+          lfgja TYPE lfbja,
+          lfbnr TYPE lfbnr,
+          lfpos TYPE lfpos,
+          belnr TYPE belnr_d,
+          gjahr TYPE gjahr,
+          buzei TYPE buzei,
+          budat TYPE budat,
+          bldat TYPE bldat,
+          menge TYPE menge_d,
+        END OF ekbe,
+
+        BEGIN OF bkpf, " bukrs belnr gjahr xblnr
+          bukrs TYPE bukrs,
+          belnr TYPE belnr_d,
+          gjahr TYPE gjahr,
+          xblnr TYPE xblnr1,
+        END OF bkpf,
+
+        BEGIN OF essr, "ebeln lblni xblnr packno kzabn
+          ebeln  TYPE ebeln,
+          lblni  TYPE lblni,
+          xblnr  TYPE xblnr_srv1,
+          packno TYPE packno,
+          kzabn  TYPE kzabn,
+        END OF essr,
+
+        BEGIN OF ml_esll, " mapno srvpos ktext1 menge meins tbtwr baswr packno fpackno ebeln ebelp
+          mapno   TYPE mapno,
+          srvpos  TYPE srvpos,
+          ktext1  TYPE sh_text1,
+          menge   TYPE mengev,
+          meins   TYPE meins,
+          tbtwr   TYPE sbrtwr,
+          baswr   TYPE baswr,
+          packno  TYPE packno,
+          fpackno TYPE fpackno,
+          ebeln   TYPE ebeln,
+          ebelp   TYPE ebelp,
+        END OF ml_esll,
+
+        BEGIN OF ss,
+          ebeln   TYPE ebeln,
+          mapno   TYPE mapno,
+          srvpos  TYPE srvpos,
+          ktext1  TYPE sh_text1,
+          menge   TYPE mengev,
+          meins   TYPE meins,
+          tbtwr   TYPE sbrtwr,
+          baswr   TYPE baswr,
+          lblni   TYPE lblni,
+          xblnr   TYPE xblnr_srv1,
+          packno  TYPE packno,
+
+          kzabn   TYPE kzabn,
+          " packno  TYPE packno,
+          fpackno TYPE fpackno,
+          "ebeln   TYPE ebeln,
+          ebelp   TYPE ebelp,
+        END OF ss,
+
+        BEGIN OF cskt, " kokrs kostl datbi ltext
+          kokrs TYPE kokrs,
+          kostl TYPE kostl,
+          datbi TYPE datbi,
+          ltext TYPE ltext,
+        END OF cskt.
+
+
+
+
+
+
+DATA: it_final  TYPE TABLE OF final,
+      wa_final  TYPE final,
+      it_acdoca TYPE TABLE OF acdoca,
+      wa_acdoca TYPE acdoca,
+      it_skat   TYPE TABLE OF skat,
+      wa_skat   TYPE skat,
+      it_gl     TYPE TABLE OF skat,
+      wa_gl     TYPE skat,
+      it_t001w  TYPE TABLE OF t001w,
+      wa_t001w  TYPE t001w,
+      it_but000 TYPE TABLE OF but000,
+      wa_but000 TYPE  but000,
+      it_makt   TYPE TABLE OF makt,
+      wa_makt   TYPE makt,
+      it_cepct  TYPE TABLE OF cepct,
+      wa_cepct  TYPE cepct,
+      it_m      TYPE TABLE OF nsdm_v_mseg,
+      wa_m      TYPE nsdm_v_mseg,
+      it_ekbe   TYPE TABLE OF ekbe,
+      wa_ekbe   TYPE ekbe,
+      it_B      TYPE  TABLE OF acdoca,
+      wa_B      TYPE  acdoca,
+      it_bkpf   TYPE TABLE OF bkpf,
+      wa_bkpf   TYPE bkpf,
+      it_GM     TYPE TABLE OF skat,
+      wa_GM     TYPE skat,
+      it_essr   TYPE TABLE OF essr,
+      wa_essr   TYPE essr,
+      it_MM     TYPE TABLE OF ml_esll,
+      wa_MM     TYPE ml_esll,
+      it_ss     TYPE TABLE OF ss,
+      wa_ss     TYPE ss,
+      it_cskt   TYPE TABLE OF cskt,
+      wa_cskt   TYPE cskt,
+      it_S      TYPE TABLE OF zgrir_dtl_logic,
+      wa_S      TYPE zgrir_dtl_logic.
+
+DATA: counter TYPE i VALUE 0.
+DATA: gt_fieldcat            TYPE slis_t_fieldcat_alv.
+DATA: gs_fieldcat            LIKE LINE OF gt_fieldcat.
 ************************************************************************
 ******************************* SELECTION SCREEN ***********************
 SELECTION-SCREEN: BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
