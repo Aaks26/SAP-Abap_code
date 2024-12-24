@@ -4,7 +4,7 @@
 *&
 *&---------------------------------------------------------------------*
 REPORT zgrir_s0130.
-TABLES: acdoca, ZCDS_GRIR_DOC.
+TABLES: acdoca, zcds_grir_doc.
 *************************************************************************
 INCLUDE Ztable_structure_top.
 ************************************************************************
@@ -15,8 +15,7 @@ SELECTION-SCREEN: BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
 SELECTION-SCREEN END OF BLOCK b1.
 
 START-OF-SELECTION.
-
-  SELECT rbukrs gjahr prctr racct budat bldat lifnr gkont ebeln blart awref belnr matnr runit msl hsl ebelp aworg rcntr
+  SELECT rbukrs gjahr prctr racct budat bldat lifnr gkont ebeln blart awref belnr matnr runit msl hsl ebelp aworg rcntr vrgng awitgrp ktosl awitem
     INTO TABLE it_acdoca
     FROM acdoca
     WHERE rbukrs IN s_CMP
@@ -29,7 +28,7 @@ START-OF-SELECTION.
       INTO TABLE it_skat
       FROM skat
       FOR ALL ENTRIES IN it_acdoca
-      WHERE saknr = it_acdoca-racct
+      WHERE saknr = it_acdoca-racct "GA ON A.RACCT=GA.SAKNR
       AND spras = 'EN'.
   ENDIF.
 
@@ -38,7 +37,7 @@ START-OF-SELECTION.
       INTO TABLE it_gl
       FROM skat
       FOR ALL ENTRIES IN it_acdoca
-      WHERE saknr = it_acdoca-gkont
+      WHERE saknr = it_acdoca-gkont   "WHERE KTOPL=''LGIN'') GL ON A.GKONT=GL.SAKNR
       AND spras = 'EN'
       AND ktopl = 'LGIN'.
   ENDIF.
@@ -48,7 +47,7 @@ START-OF-SELECTION.
       INTO TABLE it_t001w
       FROM t001w
       FOR ALL ENTRIES IN it_acdoca
-      WHERE werks = it_acdoca-prctr+0(4).
+      WHERE werks = it_acdoca-prctr+0(4). "ON PA.WERKS=LEFT(A.PRCTR,4)
   ENDIF.
 
   IF it_acdoca IS NOT INITIAL.
@@ -56,7 +55,7 @@ START-OF-SELECTION.
       INTO TABLE it_but000
       FROM but000
       FOR ALL ENTRIES IN it_acdoca
-      WHERE partner = it_acdoca-lifnr  OR partner = it_acdoca-gkont.
+      WHERE  partner = it_acdoca-lifnr  OR partner = it_acdoca-gkont .  "ON VE.PARTNER=(case when A.LIFNR='''' then A.GKONT else A.LIFNR end)
   ENDIF.
 
   IF it_acdoca IS NOT INITIAL.
@@ -64,7 +63,7 @@ START-OF-SELECTION.
       INTO TABLE it_makt
       FROM makt
       FOR ALL ENTRIES IN it_acdoca
-      WHERE matnr = it_acdoca-matnr.
+      WHERE matnr = it_acdoca-matnr. "ON A.MATNR=T.MATNR
   ENDIF.
 
   IF  it_acdoca IS NOT INITIAL.
@@ -74,23 +73,24 @@ START-OF-SELECTION.
       FOR ALL ENTRIES IN it_acdoca
       WHERE prctr = it_acdoca-prctr
       AND spras = 'E'
-      AND kokrs = 'LGIN'.
+      AND kokrs = 'LGIN'. "WHERE SPRAS=''E'' AND KOKRS=''LGIN'') PF ON PF.PRCTR=A.PRCTR
   ENDIF.
-
+*******************************************************************************************************************************
   IF  it_acdoca IS NOT INITIAL.
-    SELECT mblnr mjahr zeile ebeln ebelp line_id lfbja lfbnr lfpos
-      INTO TABLE it_m
-      FROM nsdm_v_mseg
-      FOR ALL ENTRIES IN it_acdoca
-      WHERE ebeln = it_acdoca-ebeln
-      AND ebelp = it_acdoca-ebelp
-*   AND MJAHR = it_acdoca-AWORG  " data type miss matched
-       AND mblnr = it_acdoca-awref .
-*  AND LINE_ID = it_acdoca-AWITEM. " un avaiable
+    SELECT mblnr ,mjahr, zeile ,ebeln ,ebelp ,line_id ,lfbja ,lfbnr ,lfpos ,xblnr_mkpf
+        INTO TABLE @it_m
+        FROM nsdm_v_mseg AS m
+        FOR ALL ENTRIES IN @it_acdoca
+      WHERE m~ebeln = @it_acdoca-ebeln
+      AND m~ebelp = @it_acdoca-ebelp
+*    AND m~mjahr =   RIGHT(@it_acdoca-aworg, 4) " don't have same data type ,| apply this logic in LOOP
+        AND m~mblnr = @it_acdoca-awref
+         AND m~line_id = @it_acdoca-awitem.
   ENDIF.
-
+  DELETE ADJACENT DUPLICATES FROM it_m COMPARING ebeln ebelp.
+*******************************************************
   IF  it_m IS NOT INITIAL.
-    SELECT ebeln ebelp lfgja lfbnr lfpos belnr gjahr buzei
+    SELECT ebeln ebelp lfgja lfbnr lfpos belnr gjahr buzei budat bldat menge
       INTO TABLE it_ekbe
       FROM ekbe
       FOR ALL ENTRIES IN it_M
@@ -99,21 +99,25 @@ START-OF-SELECTION.
       AND lfgja = it_M-lfbja
       AND lfbnr = it_M-lfbnr
       AND bewtp = 'Q'
-      AND lfpos = it_M-lfpos.
+      AND lfpos = it_M-lfpos. "WHERE BEWTP=''Q'') EKA ON M.EBELN=EKA.EBELN AND M.EBELP=EKA.EBELP AND M.LFBJA=EKA.LFGJA AND M.LFBNR=EKA.LFBNR AND M.LFPOS=EKA.LFPOS
 
   ENDIF.
-
+*************************************************************************************************************************
   IF it_ekbe IS NOT INITIAL.
-    SELECT rbukrs gjahr prctr racct budat bldat lifnr gkont ebeln blart awref belnr matnr runit msl hsl ebelp aworg
-      FROM acdoca
-      INTO TABLE  it_B
-      FOR ALL ENTRIES IN it_ekbe
-      WHERE belnr NOT LIKE 'B%' AND vrgng ='' AND awitgrp <> '' AND ktosl = 'WRX'
-      AND   awref = it_ekbe-belnr .
-*   AND  AWORG = it_ekbe-GJAHR    " data type miss match
-*   AND AWITGRP+0(4) = it_ekbe-BUZEI. " AWITGRP dont have any data into the acdoca table
+    SELECT rbukrs ,gjahr ,prctr ,racct ,budat ,bldat ,lifnr ,gkont ,ebeln ,blart ,awref ,belnr ,matnr ,runit ,msl ,hsl ,ebelp ,aworg ,rcntr ,vrgng ,awitgrp ,ktosl ,awitem
+      FROM acdoca AS b
+      INTO TABLE  @it_B
+      FOR ALL ENTRIES IN @it_ekbe
+      WHERE belnr NOT LIKE 'B%'
+       AND vrgng = ''
+       AND awitgrp <>''
+       AND ktosl = 'WRX'
+      AND b~awref = @it_ekbe-belnr
+      AND b~gjahr = @it_ekbe-gjahr.
+*      AND B~AWITGRP+0(4) = @it_ekbe-BUZEI.    " Apply logic in LOOP .
   ENDIF.
-
+  DELETE ADJACENT DUPLICATES FROM it_b COMPARING belnr.
+****************************************************************************************************
 
   IF it_b IS NOT INITIAL .
     SELECT bukrs belnr gjahr xblnr
@@ -122,7 +126,7 @@ START-OF-SELECTION.
       FOR ALL ENTRIES IN it_b
       WHERE bukrs = it_b-rbukrs
       AND belnr = it_b-belnr
-       AND gjahr = it_b-gjahr.
+       AND gjahr = it_b-gjahr.  "on BK.BUKRS=B.RBUKRS and BK.BELNR=B.BELNR and BK.GJAHR=B.GJAHR
   ENDIF.
 
   IF  it_b IS NOT INITIAL.
@@ -130,12 +134,11 @@ START-OF-SELECTION.
       INTO TABLE it_GM
       FROM skat
       FOR ALL ENTRIES IN it_b
-      WHERE saknr = it_b-racct.
+      WHERE saknr = it_b-racct AND ktopl = 'LGIN'.   " WHERE KTOPL=''LGIN'') GM ON B.RACCT=GM.SAKNR
   ENDIF.
 
-
   SELECT s~OrderNo,
-    s~LineNo1,
+    s~LineNU,
     s~ServiceNo,
     s~ServiceName,
     s~Qty,
@@ -143,10 +146,16 @@ START-OF-SELECTION.
     s~Rate,
     s~Amount,
     s~LblNo,
-    s~ManifestNo
-       FROM ZCDS_GRIR_DOC as S
-    INTO TABLE @it_cds.
+    s~ManifestNo,
+    S~EBELP
+       FROM zcds_grir_doc AS s
+    INTO TABLE @it_s
+    FOR ALL ENTRIES IN @it_m
+    WHERE s~orderno  = @it_m-ebeln
+    AND s~LblNo = @it_m-mblnr
+     AND s~EBELP = @it_m-ebelp .
 
+DELETE ADJACENT DUPLICATES FROM it_s COMPARING ALL FIELDS.
 
   SELECT kokrs kostl datbi ltext
     INTO TABLE it_cskt
@@ -155,81 +164,633 @@ START-OF-SELECTION.
     WHERE kostl = it_acdoca-rcntr.
 
 
+  LOOP AT it_acdoca INTO wa_acdoca.
+    CLEAR wa_final.
+    MOVE-CORRESPONDING wa_acdoca TO wa_final.
+    "COMPANY
+    wa_final-companycode = wa_acdoca-rbukrs. " COMPANY
 
-  LOOP AT  it_acdoca INTO wa_acdoca.
-     MOVE-CORRESPONDING wa_acdoca TO wa_final.
-    wa_final-companycode = wa_acdoca-rbukrs.
-    wa_final-fiscalyear  = wa_acdoca-gjahr.
-    wa_final-plant  = wa_acdoca-prctr+0(4).
-    wa_final-profitcenter = wa_acdoca-prctr.
-    "GRIR_GLACCOUNT
-    wa_final-grir_glaccount = wa_acdoca-racct.
-    "oredr no
-    wa_final-orderno = wa_acdoca-ebeln.
-    "document type
-    wa_final-documenttype  = wa_acdoca-blart.
+    "YEAR
+    wa_final-fiscalyear  = wa_acdoca-gjahr. " YEAR
 
-    "materialdocno
-    wa_final-materialdocno = wa_acdoca-awref.
-    "documentno
-    wa_final-documentno = wa_acdoca-belnr.
+    "PLANT
+    wa_final-plant       = wa_acdoca-prctr+0(4).  "PLANT
 
-    " Determine the plant name based on the condition
-    CASE wa_acdoca-prctr+0(4).
-      WHEN '5104'.
-        wa_final-plantname = 'GETP-HOSTEL'.
-      WHEN OTHERS.
-        READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_acdoca-prctr+0(4).
-        wa_final-plantname = wa_t001w-werks.
-    ENDCASE.
 
+    "Plant Name Determination
+    READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_acdoca-prctr+0(4).
+    wa_final-plantname = wa_t001w-name1. " PLANT NAME
+
+    "PROFIT CENTER
+    wa_final-profitcenter = wa_acdoca-prctr. " PROFIT CENTER
+
+    "Profit Center Name
     READ TABLE it_cepct INTO wa_cepct WITH KEY prctr = wa_acdoca-prctr.
-    wa_final-PFcentername = wa_cepct-ltext.
+    wa_final-pfcentername = wa_cepct-ltext.  "PROFIT CENTER NAME
 
-    READ TABLE it_b INTO wa_b WITH KEY   awref = wa_ekbe-belnr .
-
-    IF sy-subrc = 0 AND wa_b-rcntr <>''.
-*   "AND wa_b-belnr NOT LIKE 'B%'
-*   AND aworg = wa_ekbe-gjahr
-*   AND awitgrp+0(4) = wa_ekbe-buzei.
-      " Your logic here (e.g., processing logic if condition is met)
+    "Cost Center Assignment
+    READ TABLE it_b INTO wa_b WITH KEY awref = wa_ekbe-belnr.
+    IF  wa_b-rcntr IS NOT INITIAL AND wa_b-awitgrp+3(3) = wa_ekbe-buzei.
       wa_final-costcenter = wa_b-rcntr.
-    ELSEIF
-      wa_final-costcenter = wa_acdoca-rcntr.
+    ELSE.
+      wa_final-costcenter = wa_acdoca-rcntr.   " COST CENTER
     ENDIF.
 
+    "Cost Center Name
     READ TABLE it_cskt INTO wa_cskt WITH KEY kostl = wa_acdoca-rcntr.
-    wa_final-costcentername = wa_cskt-ltext.
+    wa_final-costcentername = wa_cskt-ltext.   " COST CENTER NAME
 
-    "grir_glaccountname
-    READ TABLE it_SKAT INTO wa_SKAT WITH  KEY saknr = wa_acdoca-racct.
-    wa_final-grir_glaccountname = wa_SKAT-txt50.
+    "GRIR GL ACCOUNT
+    wa_final-grir_glaccount = wa_acdoca-racct.  "GRIR GL ACCOUNT
 
+    "GRIR GL Account Name
+    READ TABLE it_skat INTO wa_skat WITH KEY saknr = wa_acdoca-racct.
+    wa_final-grir_glaccountname = wa_skat-txt50.
 
-    " vendor name
-    READ TABLE it_but000 INTO wa_but000 WITH  KEY partner = wa_acdoca-lifnr.
-    IF sy-subrc = 0 AND wa_but000-partner = wa_acdoca-gkont OR wa_but000-partner = wa_acdoca-lifnr.
-      CONCATENATE wa_but000-name_org1 wa_but000-name_org2 INTO DATA(lv_name) SEPARATED BY ''.
-      wa_final-vendorname = lv_name.
+    "POSTING DATE
+    wa_final-postingdate  = wa_acdoca-budat.  "POSTING DATE
+
+    "DOCUMNET DATE
+    wa_final-documentdate   = wa_acdoca-bldat.  " POSTING DATE
+
+    "VENDOR
+    IF wa_acdoca-lifnr IS INITIAL.
+      wa_final-vendorno = wa_acdoca-gkont.
+    ELSE.
+      wa_final-vendorno = wa_acdoca-lifnr.
     ENDIF.
 
-    READ TABLE it_m INTO wa_m WITH KEY  ebeln = wa_acdoca-ebeln ebelp = wa_acdoca-ebelp  mblnr = wa_acdoca-awref .
-    wa_final-manifestno =  wa_m-xblnr_mkpf.
 
-    "TYPE
-*  READ TABLE it_ss INTO wa_ss WITH  KEY  M~EBELN = S~ORDERNO    M~MBLNR=S.LBLNI  M~EBELP=S.LINENO.
-*   IF sy-subrc = 0 and e~kzabn = 'X'.
-*
-*   ENDIF.
-*
-*  (CASE WHEN A.MATNR<>'''' THEN ''ITEM'' ELSE
-*    (CASE WHEN IFNULL(S.SERVICENO,'''')<>'''' THEN ''SERVICE'' ELSE
-*    (CASE WHEN A.GKONT<>'''' THEN ''GL'' ELSE '''' END)END)END) TYPE
+    "Vendor Name
+    READ TABLE it_but000 INTO wa_but000 WITH KEY partner = wa_acdoca-lifnr.
+    IF  wa_acdoca-lifnr IS NOT INITIAL AND wa_b-awitgrp+3(3) = wa_ekbe-buzei.
+      CONCATENATE wa_but000-name_org1 wa_but000-name_org2 INTO wa_final-vendorname SEPARATED BY space.
+    ELSE.
+      READ TABLE it_but000 INTO wa_but000 WITH KEY partner = wa_acdoca-gkont.
+      IF sy-subrc = 0.
+        CONCATENATE wa_but000-name_org1 wa_but000-name_org2 INTO wa_final-vendorname SEPARATED BY space.
+      ELSE.
+        wa_final-vendorname = 'UNKNOWN'.
+      ENDIF.
+    ENDIF.
 
+    "Order number
+    wa_final-orderno     = wa_acdoca-ebeln.
 
+    "document type
+    wa_final-documenttype = wa_acdoca-blart.
+
+    "Manifest Number
+    READ TABLE it_m INTO wa_m WITH KEY ebeln = wa_acdoca-ebeln ebelp = wa_acdoca-ebelp.
+    IF sy-subrc = 0 AND wa_m-mblnr = wa_m-mblnr AND wa_m-mjahr = wa_acdoca-aworg+2(4).
+      wa_final-manifestno = wa_m-xblnr_mkpf.   "is empty no data found .
+    ENDIF.
+
+    " material doc number.
+    wa_final-materialdocno = wa_acdoca-awref.
+
+    "Documnet number
+    wa_final-documentno  = wa_acdoca-belnr.
+
+    "Type Assignment
+    IF wa_acdoca-matnr <> ''.
+      wa_final-type = 'ITEM'.
+    ELSEIF wa_s-serviceno <> ''.
+      wa_final-type = 'SERVICE'.
+    ELSEIF wa_acdoca-gkont <> ''.
+      wa_final-type = 'GL'.
+    ELSE.
+      wa_final-type = 'NO-DATE'.
+    ENDIF.
+
+    "Code Assignment
+    IF wa_acdoca-matnr <> ''.
+      wa_final-code = wa_acdoca-matnr.
+    ELSEIF wa_s-serviceno <> ''.
+      READ TABLE it_s INTO wa_s WITH  KEY  orderno  = wa_m-ebeln lblno = wa_m-mblnr ebelp = wa_m-ebelp .
+      wa_final-code = wa_s-serviceno.
+    ELSEIF wa_acdoca-gkont <> ''.
+      wa_final-code = wa_acdoca-gkont.
+    ELSE.
+      wa_final-code = 'NO-DATA'.
+    ENDIF.
+
+    "Description Assignment
+    READ TABLE it_makt INTO wa_makt WITH KEY  matnr = wa_acdoca-matnr.
+    IF wa_acdoca-matnr <> ''.
+      wa_final-description = wa_makt-maktx.
+    ELSEIF wa_s-serviceno <> ''.
+    READ TABLE it_s INTO wa_s WITH KEY orderno  = wa_m-ebeln lblno = wa_m-mblnr ebelp = wa_m-ebelp.
+      wa_final-description = wa_s-servicename.
+    ELSEIF wa_acdoca-gkont <> ''.
+      READ TABLE it_gl INTO wa_gl WITH KEY saknr = wa_acdoca-gkont.
+      wa_final-description = wa_gl-txt50.
+    ELSE.
+      wa_final-description = 'NO-DATA'.
+    ENDIF.
+
+    "UOM
+    wa_final-uom = wa_acdoca-runit.
+
+    "QTY
+    wa_final-quantity = wa_acdoca-msl.
+
+    "AMOUNT
+    wa_final-amount = wa_acdoca-hsl.
+
+    "MM INVOICE NUMBER
+    READ TABLE it_ekbe INTO wa_ekbe WITH  KEY ebeln = wa_M-ebeln  ebelp = wa_M-ebelp.
+    wa_final-mm_inv_no = wa_ekbe-belnr.
+
+    "FI INVOICE NUMBER
+    READ TABLE it_b INTO wa_b WITH KEY awref = wa_ekbe-belnr.
+    IF  wa_b-rcntr IS NOT INITIAL AND wa_b-awitgrp+3(3) = wa_ekbe-buzei.
+      wa_final-fi_inv_no = wa_b-belnr.
+    ENDIF.
+
+    " INV_POSTINGDATE
+    READ TABLE it_ekbe INTO wa_ekbe WITH  KEY ebeln = wa_M-ebeln  ebelp = wa_M-ebelp.
+    IF sy-subrc = 0.
+      wa_final-inv_postingdate = wa_ekbe-budat.  " posting date
+
+      "BILL DATE
+      wa_final-billdate = wa_ekbe-bldat.  " BILL DATE
+    ENDIF.
+
+    " BILL ON
+    READ TABLE it_bkpf INTO wa_bkpf WITH KEY bukrs = wa_b-rbukrs  belnr = wa_b-belnr  gjahr = wa_b-gjahr.
+    IF sy-subrc = 0.
+      wa_final-billno = wa_bkpf-xblnr.   "BILL ON
+    ENDIF.
+
+    "qty1
+    READ TABLE it_ekbe INTO wa_ekbe WITH  KEY ebeln = wa_M-ebeln  ebelp = wa_M-ebelp.
+    IF sy-subrc = 0.
+      wa_final-quantity1 = wa_ekbe-menge.
+    ENDIF.
+
+    " AMOUNT1
+    READ TABLE it_b INTO wa_b WITH KEY awref = wa_ekbe-belnr.
+    IF  wa_b-rcntr IS NOT INITIAL AND wa_b-awitgrp+3(3) = wa_ekbe-buzei.
+      wa_final-amount1 = wa_b-hsl.
+
+      "inv gl account number
+      wa_final-inv_glaccountno = wa_b-racct.
+    ENDIF.
+
+    "GL Account Name
+    READ TABLE it_gm INTO wa_gm WITH KEY saknr = wa_b-racct.
+    wa_final-inv_glaccountname = wa_gm-txt50.
+
+    "Append to Final Table
     APPEND wa_final TO it_final.
   ENDLOOP.
 
+DELETE ADJACENT DUPLICATES FROM it_final COMPARING ALL FIELDS.
+  PERFORM zalv_zgrir.
 
 
-  cl_demo_output=>display( it_final ).
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK                 = ' '
+*     I_BYPASSING_BUFFER                = ' '
+*     I_BUFFER_ACTIVE                   = ' '
+*     I_CALLBACK_PROGRAM                = ' '
+*     I_CALLBACK_PF_STATUS_SET          = ' '
+*     I_CALLBACK_USER_COMMAND           = ' '
+*     I_CALLBACK_TOP_OF_PAGE            = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME                  =
+*     I_BACKGROUND_ID                   = ' '
+*     I_GRID_TITLE  =
+*     I_GRID_SETTINGS                   =
+*     IS_LAYOUT     =
+      it_fieldcat   = gt_fieldcat
+*     IT_EXCLUDING  =
+*     IT_SPECIAL_GROUPS                 =
+*     IT_SORT       =
+*     IT_FILTER     =
+*     IS_SEL_HIDE   =
+*     I_DEFAULT     = 'X'
+*     I_SAVE        = ' '
+*     IS_VARIANT    =
+*     IT_EVENTS     =
+*     IT_EVENT_EXIT =
+*     IS_PRINT      =
+*     IS_REPREP_ID  =
+*     I_SCREEN_START_COLUMN             = 0
+*     I_SCREEN_START_LINE               = 0
+*     I_SCREEN_END_COLUMN               = 0
+*     I_SCREEN_END_LINE                 = 0
+*     I_HTML_HEIGHT_TOP                 = 0
+*     I_HTML_HEIGHT_END                 = 0
+*     IT_ALV_GRAPHICS                   =
+*     IT_HYPERLINK  =
+*     IT_ADD_FIELDCAT                   =
+*     IT_EXCEPT_QINFO                   =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+*     O_PREVIOUS_SRAL_HANDLER           =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER           =
+*     ES_EXIT_CAUSED_BY_USER            =
+    TABLES
+      t_outtab      = it_final[]
+    EXCEPTIONS
+      program_error = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*& Form ZALV_ZGRIR
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zalv_zgrir .
+
+
+  " Add field catalog entries for all fields
+  CLEAR gs_fieldcat.
+
+  " COMPANYCODE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'COMPANYCODE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Company Code'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " FISCALYEAR
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'FISCALYEAR'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Fiscal Year'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " PLANT
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'PLANT'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Plant'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " PLANTNAME
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'PLANTNAME'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Plant Name'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '20'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " PROFITCENTER
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'PROFITCENTER'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Profit Center'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " PROFITCENTERNAME
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'pfcentername'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Profit Center Name'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '20'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " COSTCENTER
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'COSTCENTER'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Cost Center'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " COSTCENTERNAME
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'COSTCENTERNAME'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Cost Center Name'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '20'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+  " GRIR_GLACCOUNT
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'GRIR_GLACCOUNT'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'GRIR GL Account'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " GRIR_GLACCOUNTNAME
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'GRIR_GLACCOUNTNAME'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'GRIR GL Account Name'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '20'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " POSTINGDATE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'POSTINGDATE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Posting Date'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " DOCUMENTDATE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'DOCUMENTDATE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Document Date'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " VENDORNO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'VENDORNO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Vendor Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " VENDORNAME
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'VENDORNAME'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Vendor Name'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '30'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " ORDERNO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'ORDERNO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Order Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " DOCUMENTTYPE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'DOCUMENTTYPE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Document Type'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '5'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " MANIFESTNO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'MANIFESTNO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Manifest Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " MATERIALDOCNO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'MATERIALDOCNO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Material Doc Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " DOCUMENTNO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'DOCUMENTNO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Document Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " TYPE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'TYPE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Type'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " CODE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'CODE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Code'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " DESCRIPTION
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'DESCRIPTION'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Description'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '30'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " UOM
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'UOM'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Unit of Measure'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '5'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " QUANTITY
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'QUANTITY'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Quantity'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " AMOUNT
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'AMOUNT'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Amount'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " MM_INV_NO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'MM_INV_NO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'MM Invoice Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " FI_INV_NO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'FI_INV_NO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'FI Invoice Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " INV_POSTINGDATE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'INV_POSTINGDATE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Invoice Posting Date'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " BILLDATE
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'BILLDATE'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Bill Date'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '10'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " BILLNO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'BILLNO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Bill Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " QUANTITY1
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'QUANTITY1'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Quantity 1'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " AMOUNT1
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'AMOUNT1'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Amount 1'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " INV_GLACCOUNTNO
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'INV_GLACCOUNTNO'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Invoice GL Account Number'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '15'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+  " INV_GLACCOUNTNAME
+  counter = counter + 1.
+  gs_fieldcat-col_pos    = counter.
+  gs_fieldcat-fieldname  = 'INV_GLACCOUNTNAME'.
+  gs_fieldcat-tabname    = 'IT_FINAL'.
+  gs_fieldcat-seltext_l  = 'Invoice GL Account Name'.
+  gs_fieldcat-no_zero    = 'X'.
+  gs_fieldcat-outputlen  = '30'.
+  APPEND gs_fieldcat TO gt_fieldcat.
+  CLEAR gs_fieldcat.
+
+
+ENDFORM.
