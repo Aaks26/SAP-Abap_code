@@ -7,6 +7,7 @@ REPORT zs0114.
 TABLES : with_item ,acdoca,t001w, bkpf .
 
 INCLUDE zinclude_s0114_ss.
+
 *&---------------------------------------------------------------------*
 *& Include          ZINCLUDE_S0114_SS
 *&---------------------------------------------------------------------*
@@ -23,7 +24,9 @@ SELECT-OPTIONS : s_bukrs FOR bkpf-bukrs OBLIGATORY,
 SELECTION-SCREEN END OF BLOCK A1.
 
 ************************************************************************
+
 INCLUDE Zinclude_s0114_top.
+
 *&---------------------------------------------------------------------*
 *& Include          ZINCLUDE_S0114_TOP
 *&---------------------------------------------------------------------*
@@ -42,6 +45,7 @@ TYPES : BEGIN OF ty_with_item,
           wt_acco   TYPE wt_acno,
           wt_wtexmn TYPE wt_exnr,
           gjahr     TYPE gjahr,
+          qsrec     TYPE wt_qsrec,
         END OF ty_with_item.
 *----------ACDOCA------------------
 TYPES : BEGIN OF ty_acdoca,
@@ -78,6 +82,7 @@ TYPES : BEGIN OF ty_T059D,
           land1 TYPE land1,
           witht TYPE witht,
           rctxt TYPE text30,
+          qsrec TYPE wt_qsrec,
         END OF ty_t059d.
 *------------LFA1---------------------
 TYPES : BEGIN OF ty_lfa1,
@@ -145,7 +150,7 @@ TYPES: BEGIN OF ty_final,
          lv_SURCHARGEAMOUNT            TYPE i,
          lv_HEALTHANDEDUCATIONCESSAMT  TYPE i,
          lv_TOTALTAXDEPOSITED          TYPE with_item-wt_qbshh,
-         lv_DATEONWHICHTAXDEDUCTED     TYPE bkpf-budat,
+         lv_BUDAT     TYPE bkpf-budat,
          reason                        TYPE with_item-wt_wtexmn,
          certificatenumber             TYPE with_item-wt_wtexmn,
          vendoremail                   TYPE adr6-smtp_srch,
@@ -176,6 +181,7 @@ DATA: it_wit    TYPE TABLE OF ty_with_item,
 *-------------
 DATA: lt_fcat TYPE slis_t_fieldcat_alv,
       ls_fcat TYPE slis_fieldcat_alv.
+
 *------------------------
 
 ******************** WORK-AREA****************************
@@ -194,62 +200,94 @@ DATA :wa_wit    TYPE ty_with_item,
 
 ***************************************************************************
 
-
-
 START-OF-SELECTION.
-*********************************************************************************
-*  SELECT rbukrs prctr belnr gjahr
-*     INTO TABLE it_acdoca
-*     FROM acdoca
-*     WHERE rbukrs IN s_bukrs
-*     AND gjahr IN s_gjahr
-*     AND bldat IN s_CPUDT.
+****************************** SQL logic ***********************************************
 
-*  SELECT bukrs belnr gjahr bldat cpudt blart budat
-*    INTO TABLE it_bkpf
-*    FROM bkpf
-*    FOR ALL ENTRIES IN it_acdoca
-*    WHERE
-*bukrs = it_Acdoca-rbukrs
-*    AND belnr = it_acdoca-belnr
-*    AND gjahr = it_acdoca-gjahr.
-*******************************************************************************
-  SELECT bukrs belnr gjahr bldat cpudt blart budat
-    INTO TABLE it_bkpf
-      FROM bkpf
-       WHERE bukrs IN s_bukrs
-       AND gjahr IN s_gjahr
-       AND budat IN s_budat.
+  SELECT  bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh wt_acco wt_wtexmn gjahr  QSREC
+        INTO TABLE it_wit
+        FROM with_item
+      WHERE bukrs IN S_bukrs and gjahr in s_gjahr
+      AND  wt_withcd <> ''
+      AND wt_qbshh <> 0
+      AND hkont <> ''.
 
-  SELECT rbukrs prctr belnr gjahr
-   INTO TABLE it_acdoca
-   FROM acdoca
-    FOR ALL ENTRIES IN it_bkpf
-WHERE rbukrs = it_bkpf-bukrs
-  AND belnr = it_bkpf-belnr
-  AND gjahr = it_bkpf-gjahr.
-**************************************************************************
+  IF it_wit IS NOT INITIAL.
+    SELECT witht wt_withcd qscod
+      INTO TABLE it_t059z
+      FROM t059z
+      FOR ALL ENTRIES IN it_wit
+      WHERE witht = it_wit-witht
+        AND wt_withcd = it_wit-wt_withcd.
+  ENDIF.
 
-*
-*  IF it_bkpf IS NOT INITIAL.
-*    SELECT rbukrs prctr belnr gjahr
-*      INTO TABLE it_acdoca
-*      FROM acdoca
-*      FOR ALL ENTRIES IN it_bkpf
-*      WHERE rbukrs = it_bkpf-bukrs
-*        AND gjahr  = it_bkpf-gjahr
-*       AND belnr = it_bkpf-belnr.
-*  ENDIF.
+  IF it_wit IS NOT INITIAL.
+    SELECT land1 j_1ipanno lifnr adrnr stras regio
+      INTO TABLE it_lfa1
+      FROM lfa1
+      FOR ALL ENTRIES IN it_wit
+      WHERE lifnr = it_wit-wt_acco.
+  ENDIF.
 
-  IF it_Acdoca  IS NOT INITIAL.
-    SELECT bukrs belnr witht wt_withcd wt_amnman wt_qsshh qsatz wt_qbshh wt_acco wt_wtexmn gjahr
-      INTO TABLE it_wit
-      FROM with_item
-      FOR ALL ENTRIES IN it_Acdoca
-      WHERE bukrs = it_acdoca-rbukrs
-      AND belnr = it_acdoca-belnr
-      AND gjahr = it_acdoca-gjahr.
+  IF it_lfa1 IS NOT INITIAL.
+    SELECT addrnumber smtp_srch
+      INTO TABLE it_adr6
+      FROM adr6
+      FOR ALL ENTRIES IN it_lfa1
+      WHERE addrnumber = it_lfa1-adrnr.
+  ENDIF.
 
+  IF  it_lfa1 IS NOT INITIAL.
+    SELECT partner name_org1 name_org2 name_org3
+      INTO TABLE it_but000
+      FROM but000
+      FOR ALL ENTRIES IN it_lfa1
+      WHERE partner = it_lfa1-lifnr.
+  ENDIF.
+
+  IF it_lfa1 IS NOT INITIAL.
+    SELECT addrnumber str_suppl1 str_suppl2 str_suppl3 street post_code1
+      INTO TABLE it_adrc
+      FROM adrc
+      FOR ALL ENTRIES IN it_lfa1
+      WHERE addrnumber = it_lfa1-adrnr.
+  ENDIF.
+
+  IF it_lfa1 IS NOT INITIAL.
+    SELECT bland bezei
+      INTO TABLE it_t005u
+      FROM t005u
+      FOR ALL ENTRIES IN it_lfa1
+      WHERE bland = it_lfa1-regio and SPRAS = 'E' and LAND1 = 'IN' . "on t5.BLAND=V.REGIO AND t5.SPRAS=''E'' AND t5.LAND1=''IN'' AND t5.MANDT=900
+  ENDIF.
+
+ IF it_wit IS NOT INITIAL.
+    SELECT land1 witht rctxt QSREC
+      INTO TABLE it_t059d
+      FROM t059d
+      FOR ALL ENTRIES IN it_wit
+      WHERE witht = it_wit-witht
+      and QSREC = it_wit-QSREC.
+  ENDIF.
+
+  IF it_wit IS NOT INITIAL.
+    SELECT bukrs belnr gjahr bldat cpudt blart budat
+        INTO TABLE it_bkpf
+        FROM bkpf
+        FOR ALL ENTRIES IN it_wit
+        WHERE  bukrs = it_wit-bukrs
+        AND gjahr = it_wit-gjahr
+        AND belnr = it_wit-belnr
+      and budat in S_budat and BLART <> 'KA'.
+  ENDIF.
+
+  IF it_wit IS NOT INITIAL.
+    SELECT rbukrs prctr belnr gjahr
+    INTO TABLE it_acdoca
+    FROM acdoca
+    FOR ALL ENTRIES IN it_wit
+    WHERE rbukrs = it_wit-bukrs
+    AND gjahr = it_wit-gjahr
+    AND belnr = it_wit-belnr and  KOART = 'K'.
   ENDIF.
 
   IF it_Acdoca IS NOT INITIAL.
@@ -260,71 +298,14 @@ WHERE rbukrs = it_bkpf-bukrs
       WHERE werks = it_acdoca-prctr+0(4).
   ENDIF.
 
-
-  IF it_wit IS NOT INITIAL.
-
-    SELECT witht wt_withcd qscod
-      INTO TABLE it_t059z
-      FROM t059z
-      FOR ALL ENTRIES IN it_wit
-      WHERE witht = it_wit-witht
-        AND wt_withcd = it_wit-wt_withcd.
-
-  ENDIF.
-  IF it_t059z IS NOT INITIAL.
-
-    SELECT land1 witht rctxt
-      INTO TABLE it_t059d
-      FROM t059d
-      FOR ALL ENTRIES IN it_t059z
-      WHERE witht = it_t059z-witht.
-
-  ENDIF.
-  IF it_wit IS NOT INITIAL.
-    SELECT land1 j_1ipanno lifnr adrnr stras regio
-      INTO TABLE it_lfa1
-      FROM lfa1
-      FOR ALL ENTRIES IN it_wit
-      WHERE lifnr = it_wit-wt_acco.
-  ENDIF.
-  IF  it_lfa1 IS NOT INITIAL.
-    SELECT partner name_org1 name_org2 name_org3
-      INTO TABLE it_but000
-      FROM but000
-      FOR ALL ENTRIES IN it_lfa1
-      WHERE partner = it_lfa1-lifnr.
-  ENDIF.
-  IF it_lfa1 IS NOT INITIAL.
-    SELECT addrnumber str_suppl1 str_suppl2 str_suppl3 street post_code1
-      INTO TABLE it_adrc
-      FROM adrc
-      FOR ALL ENTRIES IN it_lfa1
-      WHERE addrnumber = it_lfa1-adrnr.
-  ENDIF.
-  IF it_lfa1 IS NOT INITIAL.
-
-    SELECT bland bezei
-      INTO TABLE it_t005u
-      FROM t005u
-      FOR ALL ENTRIES IN it_lfa1
-      WHERE bland = it_lfa1-regio.
-
-  ENDIF.
-  IF it_lfa1 IS NOT INITIAL.
-
-    SELECT addrnumber smtp_srch
-      INTO TABLE it_adr6
-      FROM adr6
-      FOR ALL ENTRIES IN it_lfa1
-      WHERE addrnumber = it_lfa1-adrnr.
-
-  ENDIF.
-
+*SELECT bukrs belnr gjahr  SHKZG WRBTR
+*  FROM BSEG
+*  INTO TABLE it_bseg
+*  where bukrs in s_bukrs and
 END-OF-SELECTION.
 
-
   LOOP AT it_wit INTO wa_wit.
-    wa_final-bukrs = wa_wit-bukrs.
+    "wa_final-bukrs = wa_wit-bukrs.
     wa_final-belnr  = wa_wit-belnr.
     wa_final-reason  = wa_wit-wt_wtexmn.
     wa_final-certificatenumber  = wa_wit-wt_wtexmn.
@@ -337,44 +318,7 @@ END-OF-SELECTION.
         wa_final-lv_RATEATWHICHTAXDEDUCTED = wa_wit-qsatz.
     ENDCASE.
 
-    READ TABLE it_acdoca INTO wa_acdoca WITH  KEY rbukrs = wa_wit-bukrs  gjahr = wa_wit-gjahr belnr = wa_wit-belnr.
-
-    wa_final-werks = wa_acdoca-prctr+0(4).
-
-    READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_acdoca-prctr+0(4).
-    wa_final-name1 = wa_t001w-name1.
-    " wa_final-werks = wa_t001w-werks.
-
-    READ TABLE it_bkpf INTO wa_bkpf WITH  KEY  belnr = wa_wit-belnr  bukrs = wa_wit-bukrs gjahr = wa_wit-gjahr.
-    CASE wa_bkpf-blart.
-      WHEN 'KZ' OR 'KB' OR 'ZP'.
-        wa_final-lv_AMOUNTOFPAYMENT = wa_wit-wt_qsshh.
-      WHEN OTHERS.
-        wa_final-lv_AMOUNTOFPAYMENT = wa_wit-wt_qsshh * 1.
-    ENDCASE.
-
-    CASE wa_bkpf-blart.
-      WHEN 'KZ' OR 'KB' OR 'ZP' .
-        wa_final-lv_AMOUNTOFTAXDEDUCTED = wa_wit-wt_qbshh.
-      WHEN OTHERS.
-        wa_final-lv_AMOUNTOFTAXDEDUCTED = wa_wit-wt_qbshh * 1.
-    ENDCASE.
-
-    CASE wa_bkpf-blart.
-      WHEN 'KZ' OR 'KB' OR 'ZP' .
-        wa_final-lv_TOTALTAXDEPOSITED = wa_wit-wt_qbshh.
-      WHEN OTHERS.
-        wa_final-lv_TOTALTAXDEPOSITED = wa_wit-wt_qbshh * 1.
-    ENDCASE.
-    "wa_final-gjahr = wa_bkpf-gjahr.
-    wa_final-bldat = wa_bkpf-bldat.
-    wa_final-cpudt = wa_bkpf-cpudt.
-    wa_final-budat = wa_bkpf-budat.
-    wa_final-lv_DATEONWHICHTAXDEDUCTED = wa_bkpf-budat.
-
-
-
-    READ TABLE it_t059z INTO wa_t059z WITH KEY wa_wit-witht.
+READ TABLE it_t059z INTO wa_t059z WITH KEY witht = wa_wit-witht  wt_withcd = wa_wit-wt_withcd.
 
     IF wa_wit-wt_amnman = 'X'.
       DATA(lv_rate) = ( wa_wit-wt_qbshh / wa_wit-wt_qsshh ) * 100.
@@ -398,20 +342,14 @@ END-OF-SELECTION.
     ENDCASE.
     wa_final-lv_Scode = wa_t059z-qscod.
 
-    READ TABLE it_T059D INTO wa_T059D WITH KEY wa_t059z-witht.
-    CASE wa_t059d-rctxt.
-      WHEN 'Company'.
-        wa_t059d-rctxt = '01-Companies'.
-      WHEN OTHERS.
-        wa_t059d-rctxt = '02-Other than Companies'.
-    ENDCASE.
-    wa_final-rctxt = wa_t059d-rctxt.
-
-    READ TABLE it_lfa1 INTO wa_lfa1  WITH KEY  lifnr = wa_wit-wt_acco.
+READ TABLE it_lfa1 INTO wa_lfa1  WITH KEY  lifnr = wa_wit-wt_acco.
     wa_final-j_1ipanno = wa_lfa1-j_1ipanno.
 
 
-    READ TABLE it_but000 INTO wa_but000 WITH  KEY partner = wa_lfa1-lifnr.
+READ TABLE it_adr6 INTO wa_adr6 WITH KEY addrnumber = wa_lfa1-adrnr.
+    wa_final-vendoremail = wa_adr6-smtp_srch.
+
+READ TABLE it_but000 INTO wa_but000 WITH  KEY partner = wa_lfa1-lifnr.
     IF wa_but000-name_org1 IS NOT INITIAL.
       wa_final-lv_name = wa_but000-name_org1.
     ELSEIF wa_but000-name_org2 IS NOT INITIAL.
@@ -422,42 +360,83 @@ END-OF-SELECTION.
       wa_final-lv_name = 'No name available'. " Fallback if all fields are empty
     ENDIF.
 
-    READ TABLE it_adrc INTO wa_adrc WITH KEY addrnumber = wa_lfa1-adrnr.
+READ TABLE it_adrc INTO wa_adrc WITH KEY addrnumber = wa_lfa1-adrnr.
     wa_final-str_suppl1 = wa_adrc-str_suppl1.
     wa_final-str_suppl2 = wa_adrc-str_suppl2.
     wa_final-street = wa_adrc-street.
     wa_final-post_code1 = wa_adrc-post_code1.
 
-    READ TABLE it_t005u INTO wa_t005u WITH KEY bland = wa_lfa1-regio.
+READ TABLE it_t005u INTO wa_t005u WITH KEY bland = wa_lfa1-regio.
     wa_final-bland = wa_t005u-bland.
 
-    READ TABLE it_adr6 INTO wa_adr6 WITH KEY addrnumber = wa_lfa1-adrnr.
-    wa_final-vendoremail = wa_adr6-smtp_srch.
+READ TABLE it_bkpf INTO wa_bkpf WITH  KEY  belnr = wa_wit-belnr  bukrs = wa_wit-bukrs gjahr = wa_wit-gjahr.
+    CASE wa_bkpf-blart.
+      WHEN 'KZ' OR 'KB' OR 'ZP'.
+        wa_final-lv_AMOUNTOFPAYMENT = wa_wit-wt_qsshh.
+      WHEN OTHERS.
+        wa_final-lv_AMOUNTOFPAYMENT = wa_wit-wt_qsshh * 1.
+    ENDCASE.
+
+    CASE wa_bkpf-blart.
+      WHEN 'KZ' OR 'KB' OR 'ZP' .
+        wa_final-lv_AMOUNTOFTAXDEDUCTED = wa_wit-wt_qbshh.
+      WHEN OTHERS.
+        wa_final-lv_AMOUNTOFTAXDEDUCTED = wa_wit-wt_qbshh * 1.
+    ENDCASE.
+
+    CASE wa_bkpf-blart.
+      WHEN 'KZ' OR 'KB' OR 'ZP' .
+        wa_final-lv_TOTALTAXDEPOSITED = wa_wit-wt_qbshh.
+      WHEN OTHERS.
+        wa_final-lv_TOTALTAXDEPOSITED = wa_wit-wt_qbshh * 1.
+    ENDCASE.
+    "wa_final-gjahr = wa_bkpf-gjahr.
+    wa_final-bukrs = wa_bkpf-bukrs.
+    wa_final-bldat = wa_bkpf-bldat.
+    wa_final-cpudt = wa_bkpf-cpudt.
+    wa_final-lv_BUDAT = wa_bkpf-budat.
+*    wa_final- = wa_bkpf-budat.
+
+READ TABLE it_acdoca INTO wa_acdoca WITH  KEY rbukrs = wa_wit-bukrs  gjahr = wa_wit-gjahr belnr = wa_wit-belnr.
+    wa_final-werks = wa_acdoca-prctr+0(4).
+
+READ TABLE it_t001w INTO wa_t001w WITH KEY werks = wa_acdoca-prctr+0(4).
+    wa_final-name1 = wa_t001w-name1.
+     wa_final-werks = wa_t001w-werks.
+
+      READ TABLE it_T059D INTO wa_T059D WITH KEY wa_t059z-witht.
+    CASE wa_t059d-rctxt.
+      WHEN 'Company'.
+        wa_t059d-rctxt = '01-Companies'.
+      WHEN OTHERS.
+        wa_t059d-rctxt = '02-Other than Companies'.
+    ENDCASE.
+    wa_final-rctxt = wa_t059d-rctxt.
+
     "APPEND to final table
     APPEND wa_final TO it_final.
   ENDLOOP.
-"hi this is aakash
-  " Initialize field catalog for ty_final structure
 
+********************************************************************************
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '1'.
   ls_fcat-fieldname = 'BUKRS'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Company Code'.
+  ls_fcat-seltext_m = 'COMPANY CODE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '2'.
   ls_fcat-fieldname = 'werks'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Plant'.
+  ls_fcat-seltext_m = 'PLANT'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '3'.
   ls_fcat-fieldname = 'NAME1'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Plant Name'.
+  ls_fcat-seltext_m = 'PLANT NAME'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -471,35 +450,35 @@ END-OF-SELECTION.
   ls_fcat-col_pos   = '5'.
   ls_fcat-fieldname = 'GJAHR'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Fiscal Year'.
+  ls_fcat-seltext_m = 'YEAR'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '6'.
   ls_fcat-fieldname = 'BLDAT'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Document Date'.
+  ls_fcat-seltext_m = 'DOCUMENT DATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '7'.
   ls_fcat-fieldname = 'CPUDT'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Entry Date'.
+  ls_fcat-seltext_m = 'ENTRY DATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '8'.
   ls_fcat-fieldname = 'LV_CHALANNO'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Challan Number'.
+  ls_fcat-seltext_m = 'CHALLAN NUMBER'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '9'.
   ls_fcat-fieldname = 'LV_SCODE'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Section Code'.
+  ls_fcat-seltext_m = 'SECTION CODE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -536,28 +515,28 @@ END-OF-SELECTION.
   ls_fcat-col_pos   = '14'.
   ls_fcat-fieldname = 'STR_SUPPL1'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Address Line 1'.
+  ls_fcat-seltext_m = 'ADDRESS LINE 1'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '15'.
   ls_fcat-fieldname = 'STR_SUPPL2'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Address Line 2'.
+  ls_fcat-seltext_m = 'ADDRESS LINE 2'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '16'.
   ls_fcat-fieldname = 'STREET'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Street'.
+  ls_fcat-seltext_m = 'STREET'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '17'.
   ls_fcat-fieldname = 'LV_DEDUCTEEADDRESS5'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Deductee Address'.
+  ls_fcat-seltext_m = 'DEDUCTEE ADDRESS'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -578,7 +557,7 @@ END-OF-SELECTION.
   ls_fcat-col_pos   = '20'.
   ls_fcat-fieldname = 'LV_AMOUNTOFPAYMENT'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Amount of Payment'.
+  ls_fcat-seltext_m = 'AMOUNT OF PAYMENR'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -592,14 +571,14 @@ END-OF-SELECTION.
   ls_fcat-col_pos   = '22'.
   ls_fcat-fieldname = 'LV_RATEATWHICHTAXDEDUCTED'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Tax Deduction Rate'.
+  ls_fcat-seltext_m = 'TAX  DEDUCATED RATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '23'.
   ls_fcat-fieldname = 'LV_SURCHARGERATE'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Surcharge Rate'.
+  ls_fcat-seltext_m = 'SURCHARGE RATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -613,14 +592,14 @@ END-OF-SELECTION.
   ls_fcat-col_pos   = '25'.
   ls_fcat-fieldname = 'LV_AMOUNTOFTAXDEDUCTED'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Amount of Tax Deducted'.
+  ls_fcat-seltext_m = 'AMOUNT OF TAX DIDUCATED'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '26'.
   ls_fcat-fieldname = 'LV_SURCHARGEAMOUNT'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Surcharge Amount'.
+  ls_fcat-seltext_m = 'SURCHARAGE AMOUNT'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
@@ -634,48 +613,93 @@ END-OF-SELECTION.
   ls_fcat-col_pos   = '28'.
   ls_fcat-fieldname = 'LV_TOTALTAXDEPOSITED'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Total Tax Deposited'.
+  ls_fcat-seltext_m = 'TOTAL TAX DEPOSITED'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '29'.
-  ls_fcat-fieldname = 'budat'.
+  ls_fcat-fieldname = 'LV_BUDAT'. "
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Tax Deduction Date'.
+  ls_fcat-seltext_m = 'TAX DEDUCATION DATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '30'.
   ls_fcat-fieldname = 'REASON'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Reason Code'.
+  ls_fcat-seltext_m = 'REASON DATE'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '31'.
   ls_fcat-fieldname = 'CERTIFICATENUMBER'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Certificate Number'.
+  ls_fcat-seltext_m = 'CERTIFICATE NUMBER'.
   APPEND ls_fcat TO lt_fcat.
 
   CLEAR ls_fcat.
   ls_fcat-col_pos   = '32'.
   ls_fcat-fieldname = 'VENDOREMAIL'.
   ls_fcat-tabname   = 'z_final_data'.
-  ls_fcat-seltext_m = 'Vendor Email'.
+  ls_fcat-seltext_m = 'VENDOR EMAIL'.
   APPEND ls_fcat TO lt_fcat.
 
 
-* Call ALV grid display
-  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
-    EXPORTING
-      it_fieldcat   = lt_fcat
-*     i_save        = 'A'        " Optional, saves the ALV layout
-    TABLES
-      t_outtab      = it_final
-    EXCEPTIONS
-      program_error = 1
-      OTHERS        = 2.
+********************************************************
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+*   I_INTERFACE_CHECK                 = ' '
+*   I_BYPASSING_BUFFER                = ' '
+*   I_BUFFER_ACTIVE                   = ' '
+*   I_CALLBACK_PROGRAM                = ' '
+*   I_CALLBACK_PF_STATUS_SET          = ' '
+*   I_CALLBACK_USER_COMMAND           = ' '
+*   I_CALLBACK_TOP_OF_PAGE            = ' '
+*   I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*   I_CALLBACK_HTML_END_OF_LIST       = ' '
+*   I_STRUCTURE_NAME                  =
+*   I_BACKGROUND_ID                   = ' '
+*   I_GRID_TITLE                      =
+*   I_GRID_SETTINGS                   =
+*   IS_LAYOUT                         =
+   IT_FIELDCAT                       = lt_fcat
+*   IT_EXCLUDING                      =
+*   IT_SPECIAL_GROUPS                 =
+*   IT_SORT                           =
+*   IT_FILTER                         =
+*   IS_SEL_HIDE                       =
+*   I_DEFAULT                         = 'X'
+*   I_SAVE                            = ' '
+*   IS_VARIANT                        =
+*   IT_EVENTS                         =
+*   IT_EVENT_EXIT                     =
+*   IS_PRINT                          =
+*   IS_REPREP_ID                      =
+*   I_SCREEN_START_COLUMN             = 0
+*   I_SCREEN_START_LINE               = 0
+*   I_SCREEN_END_COLUMN               = 0
+*   I_SCREEN_END_LINE                 = 0
+*   I_HTML_HEIGHT_TOP                 = 0
+*   I_HTML_HEIGHT_END                 = 0
+*   IT_ALV_GRAPHICS                   =
+*   IT_HYPERLINK                      =
+*   IT_ADD_FIELDCAT                   =
+*   IT_EXCEPT_QINFO                   =
+*   IR_SALV_FULLSCREEN_ADAPTER        =
+*   O_PREVIOUS_SRAL_HANDLER           =
+* IMPORTING
+*   E_EXIT_CAUSED_BY_CALLER           =
+*   ES_EXIT_CAUSED_BY_USER            =
+  TABLES
+    t_outtab                          = it_final
+ EXCEPTIONS
+   PROGRAM_ERROR                     = 1
+   OTHERS                            = 2
+          .
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
 
 
   IF sy-subrc <> 0.
