@@ -7,10 +7,6 @@ REPORT zs0114.
 TABLES : with_item ,acdoca,t001w, bkpf .
 
 INCLUDE zinclude_s0114_ss.
-INCLUDE Zinclude_s0114_top.
-PERFORM zget_data_TDS.
-PERFORM zget_fcat_TDS.
-
 *&---------------------------------------------------------------------*
 *& Include          ZINCLUDE_S0114_SS
 *&---------------------------------------------------------------------*
@@ -27,7 +23,7 @@ SELECT-OPTIONS : s_bukrs FOR bkpf-bukrs OBLIGATORY,
 SELECTION-SCREEN END OF BLOCK A1.
 
 ************************************************************************
-
+INCLUDE Zinclude_s0114_top.
 *&---------------------------------------------------------------------*
 *& Include          ZINCLUDE_S0114_TOP
 *&---------------------------------------------------------------------*
@@ -200,6 +196,9 @@ DATA :wa_wit    TYPE ty_with_item,
       wa_final  TYPE ty_final.
 
 ***************************************************************************
+PERFORM zget_data_TDS.
+PERFORM zget_fcat_TDS.
+
 
 
 
@@ -617,7 +616,7 @@ CLEAR ls_fcat.
 
 counter = counter + 1.
 ls_fcat-col_pos    = counter.
-ls_fcat-fieldname = 'BLAND'.
+ls_fcat-fieldname = 'BEZEI'.
 ls_fcat-tabname   = 'Z_FINAL_DATA'.
 ls_fcat-seltext_m = 'Deductee State'.
 ls_fcat-no_zero    = 'X'.
