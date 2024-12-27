@@ -11,6 +11,195 @@ INCLUDE Zinclude_s0114_top.
 PERFORM zget_data_TDS.
 PERFORM zget_fcat_TDS.
 
+*&---------------------------------------------------------------------*
+*& Include          ZINCLUDE_S0114_SS
+*&---------------------------------------------------------------------*
+
+
+*******************selection screen ************************************
+SELECTION-SCREEN BEGIN OF BLOCK A1 WITH FRAME TITLE text-002.
+SELECT-OPTIONS : s_bukrs FOR bkpf-bukrs OBLIGATORY,
+*                  s_werks FOR t001w-werks,
+                  s_GJAHR FOR bkpf-gjahr,
+                  s_budat FOR bkpf-budat OBLIGATORY.
+                  "s_belnr FOR with_item-belnr
+
+SELECTION-SCREEN END OF BLOCK A1.
+
+************************************************************************
+
+*&---------------------------------------------------------------------*
+*& Include          ZINCLUDE_S0114_TOP
+*&---------------------------------------------------------------------*
+
+***************************DATA DECLARATION *****************************
+*-----------with_item---------------
+TYPES : BEGIN OF ty_with_item,
+          bukrs     TYPE bukrs,     " company code
+          belnr     TYPE belnr_d,    "Accounting Document Number
+          witht     TYPE witht,
+          wt_withcd TYPE wt_withcd,
+          wt_amnman TYPE wt_amnman,
+          wt_qsshh  TYPE wt_bs,
+          qsatz     TYPE wt_qsatz,
+          wt_qbshh  TYPE wt_wt,
+          wt_acco   TYPE wt_acno,
+          wt_wtexmn TYPE wt_exnr,
+          gjahr     TYPE gjahr,
+          qsrec     TYPE wt_qsrec,
+        END OF ty_with_item.
+*----------ACDOCA------------------
+TYPES : BEGIN OF ty_acdoca,
+          rbukrs TYPE bukrs,
+          prctr  TYPE prctr, " profit-center
+          belnr  TYPE belnr_d, "Accounting Document Number
+          gjahr  TYPE gjahr,
+          werks  TYPE werks_d, "plant
+          bldat  TYPE bldat, " doc. date
+        END OF ty_acdoca.
+*------------t001w------------------
+TYPES: BEGIN OF ty_t001w,
+         werks TYPE werks_d,
+         name1 TYPE name1,
+       END OF ty_t001w.
+*------------BKPf--------------------
+TYPES: BEGIN OF ty_bkpf,
+         bukrs TYPE bukrs, "company code
+         belnr TYPE belnr_d, " Accounting Document Number
+         gjahr TYPE gjahr, "year
+         bldat TYPE bldat, "doc. date
+         cpudt TYPE cpudt, "Entered date
+         blart TYPE blart, "TYPE
+         budat TYPE budat,
+       END OF ty_bkpf.
+*----------------t059z------------------
+TYPES : BEGIN OF ty_T059Z,
+          witht     TYPE witht,
+          wt_withcd TYPE wt_withcd,
+          qscod     TYPE wt_owtcd,
+        END OF ty_t059z.
+*-------------T059D--------------------
+TYPES : BEGIN OF ty_T059D,
+          land1 TYPE land1,
+          witht TYPE witht,
+          rctxt TYPE text30,
+          qsrec TYPE wt_qsrec,
+        END OF ty_t059d.
+*------------LFA1---------------------
+TYPES : BEGIN OF ty_lfa1,
+          land1     TYPE land1_gp,
+          j_1ipanno TYPE j_1ipanno,
+          lifnr     TYPE lifnr,
+          adrnr     TYPE adrnr,
+          stras     TYPE stras_gp,
+          regio     TYPE regio,
+        END OF TY_lfa1.
+*-----------but000------------------------
+TYPES : BEGIN OF ty_but000,
+          partner   TYPE bu_partner,
+          name_org1 TYPE bu_nameor1,
+          name_org2 TYPE bu_nameor2,
+          name_org3 TYPE bu_nameor3,
+        END OF ty_but000.
+*-------------ADRC--------------------------
+TYPES : BEGIN OF ty_adrc,
+          addrnumber TYPE ad_addrnum,
+          str_suppl1 TYPE ad_strspp1,
+          str_suppl2 TYPE ad_strspp2,
+          str_suppl3 TYPE ad_strspp3,
+          street     TYPE ad_street,
+          post_code1 TYPE ad_pstcd1,
+        END OF ty_adrc.
+*--------------t005u--------------
+TYPES : BEGIN OF ty_t005u,
+          bland TYPE regio,
+          bezei TYPE bezei20,
+        END OF ty_t005u.
+*---------------ADR6------------------
+TYPES : BEGIN OF ty_adr6,
+          addrnumber TYPE ad_addrnum,
+          smtp_srch  TYPE ad_smtpad2,
+        END OF ty_adr6.
+
+*--------final-----------
+TYPES: BEGIN OF ty_final,
+         bukrs                         TYPE with_item-bukrs,
+         werks                         TYPE t001w-werks,
+         name1                         TYPE t001w-name1,
+         belnr                         TYPE acdoca-belnr,
+         gjahr                         TYPE bkpf-gjahr,
+         bldat                         TYPE bkpf-bldat,
+         cpudt                         TYPE bkpf-cpudt,
+         lv_chalanno                   TYPE i,
+         lv_Scode                      TYPE t059z-qscod,
+         rctxt                         TYPE t059d-rctxt,
+         j_1ipanno                     TYPE lfa1-j_1ipanno,
+         lv_Drffno                     TYPE i,
+         lv_name                       TYPE but000-name_org1,
+         str_suppl1                    TYPE adrc-str_suppl1,
+         str_suppl2                    TYPE adrc-str_suppl2,
+         street                        TYPE adrc-street,
+         lv_DEDUCTEEADDRESS5           TYPE i,
+         BEZEI                         TYPE t005u-BEZEI,
+         post_code1                    TYPE adrc-post_code1,
+         lv_AMOUNTOFPAYMENT            TYPE with_item-wt_qsshh,
+         budat                         TYPE bkpf-budat,
+         lv_RATEATWHICHTAXDEDUCTED     TYPE with_item-wt_qbshh,
+         lv_SURCHARGERATE              TYPE i,
+         lv_HEALTHANDEDUCATIONCESSRATE TYPE i,
+         lv_AMOUNTOFTAXDEDUCTED        TYPE with_item-wt_qbshh,
+         lv_SURCHARGEAMOUNT            TYPE i,
+         lv_HEALTHANDEDUCATIONCESSAMT  TYPE i,
+         lv_TOTALTAXDEPOSITED          TYPE with_item-wt_qbshh,
+         lv_BUDAT     TYPE bkpf-budat,
+         reason                        TYPE with_item-wt_wtexmn,
+         certificatenumber             TYPE with_item-wt_wtexmn,
+         vendoremail                   TYPE adr6-smtp_srch,
+       END OF ty_final.
+
+DATA : lv_chalano                    VALUE 0,
+       lv_drffno                     VALUE 0,
+       lv_SURCHARGERATE              VALUE 0,
+       lv_HEALTHANDEDUCATIONCESSRATE VALUE 0,
+       lv_SURCHARGEAMOUNT            VALUE 0,
+       lv_DEDUCTEEADDRESS5           VALUE 0,
+       lv_HEALTHANDEDUCATIONCESSAMT  VALUE 0.
+
+*****************INTERNAL TABLE ******************************************
+DATA: it_wit    TYPE TABLE OF ty_with_item,
+      it_acdoca TYPE TABLE OF ty_acdoca,
+      it_t001w  TYPE TABLE OF ty_t001w,
+      it_bkpf   TYPE TABLE OF ty_bkpf,
+      it_t059z  TYPE TABLE OF ty_t059z,
+      it_T059D  TYPE TABLE OF ty_T059D,
+      it_lfa1   TYPE TABLE OF ty_lfa1,
+      it_but000 TYPE TABLE OF ty_but000,
+      it_adrc   TYPE TABLE OF ty_adrc,
+      it_t005u  TYPE TABLE OF ty_t005u,
+      it_adr6   TYPE TABLE OF ty_adr6,
+      it_final  TYPE TABLE OF ty_final.
+
+*-------------
+DATA: lt_fcat TYPE slis_t_fieldcat_alv,
+      ls_fcat TYPE slis_fieldcat_alv.
+
+*------------------------
+
+******************** WORK-AREA****************************
+DATA :wa_wit    TYPE ty_with_item,
+      wa_acdoca TYPE ty_acdoca,
+      wa_t001w  TYPE ty_t001w,
+      wa_bkpf   TYPE ty_bkpf,
+      wa_t059z  TYPE ty_t059z,
+      wa_T059D  TYPE ty_T059D,
+      wa_lfa1   TYPE ty_lfa1,
+      wa_but000 TYPE ty_but000,
+      wa_adrc   TYPE ty_adrc,
+      wa_t005u  TYPE ty_t005u,
+      wa_adr6   TYPE ty_adr6,
+      wa_final  TYPE ty_final.
+
+***************************************************************************
 
 
 
