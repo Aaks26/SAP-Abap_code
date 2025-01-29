@@ -7,7 +7,214 @@ REPORT ZRFI_BCM_PAYMENT_CHECKLIST_CP.
 
 TABLES :bnk_batch_item,bnk_batch_header.
 include Zbcm_checklist_top.
+*&---------------------------------------------------------------------*
+*& Include          ZBCM_CHECKLIST_TOP
+*&---------------------------------------------------------------------*
 
+****************************************************************************
+TYPES :BEGIN OF bnk_batch_header,
+         guid      TYPE bnk_com_btch_guid,
+         zbukr     TYPE dzbukr,
+         batch_no  TYPE bnk_com_btch_no,     " batch number
+         laufd     TYPE bnk_com_btch_mrge_dat,
+         batch_sum TYPE bnk_com_btch_amount, " batch SUM
+         rule_id   TYPE bnk_com_btch_rule_id,  " rule ID
+         item_cnt  TYPE bnk_com_btch_ctr, " item number of paymnet
+         hbkid     TYPE hbkid, " bank ID
+       END OF bnk_batch_header.
+
+TYPES : BEGIN OF bnk_batch_item,
+          zbukr      TYPE dzbukr,
+          batch_no   TYPE bnk_com_btch_no,
+          laufd      TYPE bnk_com_btch_mrge_dat,
+          laufi_o    TYPE laufi,
+          item_no    TYPE bnk_com_btch_cnt,
+          lifnr      TYPE lifnr,    "party name
+          vblnr      TYPE vblnr, "pay no
+          amt_rulecu TYPE bnk_com_pymntamt_in_rulcu, " amount
+          kunnr      TYPE kunnr,
+        END OF bnk_batch_item.
+
+TYPES : BEGIN OF t001,
+          bukrs TYPE bukrs,
+          butxt TYPE butxt,
+          adrnr TYPE adrnr,
+        END OF t001.
+
+TYPES : BEGIN OF adrc,
+          addrnumber TYPE ad_addrnum,
+          name1      TYPE ad_name1,
+          name2      TYPE ad_name2,
+        END OF adrc.
+
+TYPES : BEGIN OF tbnk_rule_t,
+          rule_id TYPE bnk_com_rule_id,
+          text    TYPE bnk_com_rule_id_desc,
+        END OF tbnk_rule_t.
+
+TYPES : BEGIN OF bnka,
+          banka TYPE banka,
+          bankl TYPE bankk,
+          bnklz TYPE bankl,
+          swift TYPE swift,
+        END OF bnka.
+TYPES : BEGIN OF reguh, " laufd laufi hbkid zbukr ubnky ubknt  vblnr lifnr name1 kunnr xvorl zswif zbnkn zbnkn_long  bkref
+          laufd      TYPE laufd,
+          laufi      TYPE laufi,
+          hbkid      TYPE hbkid,
+          zbukr      TYPE dzbukr,
+          ubnky      TYPE ubnky,
+          ubknt      TYPE ubknt,
+          vblnr      TYPE vblnr,
+          lifnr      TYPE lifnr,
+          name1      TYPE name1_gp,
+          kunnr      TYPE kunnr,
+          xvorl      TYPE xvorl,
+          zswif      TYPE swift,
+          zbnkn      TYPE dzbnkn,
+          zbnkn_long TYPE dzbnkn35,
+          bkref      TYPE bkref,
+        END OF reguh.
+
+TYPES : BEGIN OF acdoca,
+          rbukrs TYPE bukrs,
+          belnr  TYPE belnr_d,
+          prctr  TYPE prctr,
+          blart  TYPE blart,
+          netdt  TYPE netdt,
+          awref  TYPE awref,
+          hsl    TYPE fins_vhcur12,
+          lifnr  TYPE lifnr,
+          kunnr  TYPE kunnr,
+          gjahr  TYPE gjahr,
+          augdt  TYPE augdt,
+          augbl  TYPE augbl,
+          bldat  TYPE bldat,
+        END OF acdoca.
+
+TYPES : BEGIN OF bkpf,
+          BUKRS TYPE BUKRS,
+          BELNR TYPE BELNR_D,
+          XBLNR TYPE XBLNR,
+        END OF bkpf.
+
+DATA :it_bnkH   TYPE TABLE OF bnk_batch_header,
+      wa_bnkH   TYPE bnk_batch_header,
+      it_bnkI   TYPE TABLE OF bnk_batch_item,
+      wa_bnki   TYPE bnk_batch_item,
+      it_t001   TYPE TABLE OF t001,
+      wa_t001   TYPE t001,
+      it_adrc   TYPE TABLE OF adrc,
+      wa_adrc   TYPE adrc,
+      it_tt     TYPE TABLE  OF tbnk_rule_t,
+      wa_tt     TYPE tbnk_rule_t,
+      it_bnka   TYPE TABLE OF bnka,
+      wa_bnka   TYPE bnka,
+      it_reguh  TYPE TABLE OF reguh,
+      wa_reguh  TYPE reguh,
+      it_acdoca TYPE TABLE  OF acdoca,
+      wa_acdoca TYPE acdoca,
+      it_bkpf   TYPE TABLE of bkpf,
+      wa_bkpf   TYPE bkpf.
+
+TYPES: BEGIN OF ty_header_data,
+         name1     TYPE ad_name1,
+         name2     TYPE ad_name2,
+         full_name TYPE char100,
+         zbukr     TYPE dzbukr,
+         hbkid     TYPE hbkid,
+         ubnky     TYPE ubnky,
+         ubknt     TYPE ubknt,
+         banka     TYPE banka,
+         batch_no  TYPE bnk_com_btch_no,
+         batch_sum TYPE bnk_com_btch_amount,
+         item_cnt  TYPE bnk_com_btch_ctr,
+         rule_id   TYPE bnk_com_btch_rule_id,
+         text      TYPE bnk_com_rule_id_desc,
+         laufi     TYPE laufi,
+       END OF ty_header_data.
+
+TYPES: BEGIN OF ty_item_data,
+         lifnr      TYPE lifnr,         " Party name
+         vblnr      TYPE vblnr,        " Payment number
+         amt_rulecu TYPE bnk_com_pymntamt_in_rulcu, " Amount
+         laufd      TYPE bnk_com_btch_mrge_dat,     " Merge date
+         key_id     TYPE char20,       "Rs:add.
+         belnr      TYPE belnr_d,
+         prctr      TYPE prctr,
+         blart      TYPE blart,
+         werks      TYPE werks_d,
+         name1      TYPE string,
+         lif_name1  TYPE name1_gp,
+         zswif      TYPE swift,
+         zbnkn      TYPE dzbnkn,
+         bkref      TYPE bkref,
+         banka      TYPE banka,
+         konzs      TYPE konzs,
+         zbukr      TYPE dzbukr,
+         xblnr      TYPE xblnr1,
+       END OF ty_item_data.
+**********************************************************************
+*TYPES: BEGIN OF ty_bill_dt,
+*         belnr   TYPE belnr_d,
+*         blart   TYPE blart,
+*         bldat   TYPE bldat,
+*         awref   TYPE awref,
+*         netdt   TYPE netdt,
+*         xblnr   TYPE xblnr1,
+*         tds     TYPE wrbtr,
+**         ppnam   TYPE char12, " Adjust size based on expected length
+*         wrbtr   TYPE wrbtr,
+*         skfbt   TYPE skfbt,
+*         augbl   TYPE belnr_d,
+*         amt_pay TYPE wrbtr,
+*         key_id  TYPE char20,  "RS:added.
+*       END OF ty_bill_dt.
+**** " changes the structure by  Aakash j patel ******************
+TYPES : BEGIN OF ty_bill_dt,
+          belnr   TYPE belnr_d,
+          H_blart TYPE blart,
+          ebeln   TYPE ebeln,
+          H_bldat TYPE BLDAT,
+          netdt   TYPE netdt,
+          tds     TYPE QBSHB,
+          wrbtr   TYPE wrbtr,
+          final   TYPE wrbtr,
+          amt_py  TYPE wrbtr,
+          skfbt   TYPE skfbt,
+        END OF ty_bill_dt.
+
+**************************** AJ **********************
+TYPES : BEGIN OF bseg,  "bukrs belnr prctr h_blart netdt  lifnr kunnr gjahr augdt augbl H_BLDAT ebeln qbshb wrbtr
+          bukrs   TYPE bukrs,
+          BELNR   TYPE BELNR_D,
+          PRCTR   TYPE PRCTR,
+          h_blart TYPE blart,
+          netdt   TYPE netdt,
+          LIFNR   TYPE LIFNR,
+          kunnr   TYPE kunnr,
+          GJAHR   TYPE GJAHR,
+          AUGDT   TYPE AUGDT,
+          AUGBL   TYPE AUGBL,
+          H_BLDAT TYPE BLDAT,
+          ebeln   TYPE ebeln,
+          qbshb   TYPE qbshb,
+          wrbtr   TYPE wrbtr,
+        END OF bseg.
+
+data :it_bseg TYPE TABLE of bseg,
+      wa_bseg TYPE bseg.
+***************************************************************************
+DATA: it_item TYPE TABLE OF ty_item_data,
+      wa_item TYPE ty_item_data.
+
+
+DATA: it_header TYPE TABLE OF ty_header_data,
+      wa_header TYPE ty_header_data.
+
+DATA: it_bill TYPE TABLE OF ty_bill_dt,
+      wa_bill TYPE ty_bill_dt.
+******************************************************************************************************************************************************************************************************************
 **************** INPUT SCREEN ******************************************
 SELECT-OPTIONS : s_ZBUKR FOR bnk_batch_header-zbukr NO INTERVALS NO-EXTENSION OBLIGATORY ,
                  s_LAUO FOR bnk_batch_item-laufi_o,
